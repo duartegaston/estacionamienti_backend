@@ -1,0 +1,35 @@
+# .gitignore
+
+# Binaries
+/bin/
+/build/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Vendor directory (if using go mod vendor)
+vendor/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE/editor files
+.idea/
+.vscode/
+*.swp
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# Test output
+coverage.out
+
+# Dependency directories (Go modules)
+/go.sum

@@ -1,0 +1,21 @@
+# .env
+
+# PostgreSQL connection string (adjust user, password, dbname, host, port as needed)
+DATABASE_URL=postgres://youruser:yourpassword@localhost:5432/estacionamienti?sslmode=disable
+
+# Port for your Go server to listen on
+PORT=8080
+
+# Admin token for protected endpoints (change to a secure value!)
+ADMIN_TOKEN=supersecrettoken
+
+# Email
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_email_password
+
+# Twilio SMS
+TWILIO_ACCOUNT_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_FROM_NUMBER=+1234567890
