@@ -2,14 +2,14 @@ package main
 
 import (
 	"database/sql"
+	"estacionamienti/internal/api"
+	"estacionamienti/internal/auth"
 	"estacionamienti/internal/repository"
 	"estacionamienti/internal/service"
 	"log"
 	"net/http"
 	"os"
 
-	"estacionamienti/internal/api"
-	"estacionamienti/internal/auth"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -29,11 +29,18 @@ func main() {
 		log.Fatalf("Failed to connect to DB: %v", err)
 	}
 
-	repo := repository.NewReservationRepository(db)
-	svc := service.NewReservationService(repo)
+	// Repositories
+	reservationRepo := repository.NewReservationRepository(db)
+	adminRepo := repository.NewAdminAuthRepository(db)
 
-	userReservationHandler := api.NewUserReservationHandler(svc)
-	adminHandler := api.NewAdminHandler(svc)
+	// Services
+	reservationSvc := service.NewReservationService(reservationRepo)
+	adminSvc := service.NewAdminAuthService(adminRepo)
+
+	// Handlers
+	userReservationHandler := api.NewUserReservationHandler(reservationSvc)
+	adminHandler := api.NewAdminHandler(reservationSvc)
+	adminAuthHandler := api.NewAdminAuthHandler(adminSvc)
 
 	r := mux.NewRouter()
 
@@ -44,13 +51,17 @@ func main() {
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.UpdateReservation).Methods("PUT")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE")
 
+	// Admin login
+	r.HandleFunc("/api/login", adminAuthHandler.CreateUserAdmin).Methods("POST")
+	r.HandleFunc("/admin/login", adminAuthHandler.Login).Methods("POST")
+
 	// Admin endpoints (protected)
-	admin := r.PathPrefix("/admin").Subrouter()
-	admin.Use(auth.AdminAuthMiddleware)
-	admin.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET")
-	admin.HandleFunc("/reservations/{id}", adminHandler.AdminUpdateReservation).Methods("PUT")
-	admin.HandleFunc("/reservations/{id}", adminHandler.AdminDeleteReservation).Methods("DELETE")
-	admin.HandleFunc("/spaces/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT")
+	adminRouter := r.PathPrefix("/admin").Subrouter()
+	adminRouter.Use(auth.AdminAuthMiddleware)
+	adminRouter.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET")
+	adminRouter.HandleFunc("/reservations/{id}", adminHandler.AdminUpdateReservation).Methods("PUT")
+	adminRouter.HandleFunc("/reservations/{id}", adminHandler.AdminDeleteReservation).Methods("DELETE")
+	adminRouter.HandleFunc("/spaces/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT")
 
 	port := os.Getenv("PORT")
 	if port == "" {
