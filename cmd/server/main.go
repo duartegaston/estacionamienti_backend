@@ -11,9 +11,12 @@ import (
 	"estacionamienti/internal/api"
 	"estacionamienti/internal/auth"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func main() {
+	godotenv.Load()
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL not set")
