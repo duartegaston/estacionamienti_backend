@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"estacionamienti/internal/repository"
+	"estacionamienti/internal/service"
 	"log"
 	"net/http"
 	"os"
@@ -24,25 +26,28 @@ func main() {
 		log.Fatalf("Failed to connect to DB: %v", err)
 	}
 
-	// Assign DB to handlers (assuming api.DB is a global *sql.DB)
-	api.DB = db
+	repo := repository.NewReservationRepository(db)
+	svc := service.NewReservationService(repo)
+
+	userReservationHandler := api.NewUserReservationHandler(svc)
+	adminHandler := api.NewAdminHandler(svc)
 
 	r := mux.NewRouter()
 
 	// Public endpoints
-	r.HandleFunc("/api/availability", api.CheckAvailability).Methods("POST")
-	r.HandleFunc("/api/reservations", api.CreateReservation).Methods("POST")
-	r.HandleFunc("/api/reservations/{code}", api.GetReservation).Methods("GET")
-	r.HandleFunc("/api/reservations/{code}", api.UpdateReservation).Methods("PUT")
-	r.HandleFunc("/api/reservations/{code}", api.CancelReservation).Methods("DELETE")
+	r.HandleFunc("/api/availability", userReservationHandler.CheckAvailability).Methods("POST")
+	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST")
+	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET")
+	r.HandleFunc("/api/reservations/{code}", userReservationHandler.UpdateReservation).Methods("PUT")
+	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE")
 
 	// Admin endpoints (protected)
 	admin := r.PathPrefix("/admin").Subrouter()
 	admin.Use(auth.AdminAuthMiddleware)
-	admin.HandleFunc("/reservations", api.ListReservations).Methods("GET")
-	admin.HandleFunc("/reservations/{id}", api.AdminUpdateReservation).Methods("PUT")
-	admin.HandleFunc("/reservations/{id}", api.AdminDeleteReservation).Methods("DELETE")
-	admin.HandleFunc("/spaces/{vehicle_type}", api.UpdateVehicleSpaces).Methods("PUT")
+	admin.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET")
+	admin.HandleFunc("/reservations/{id}", adminHandler.AdminUpdateReservation).Methods("PUT")
+	admin.HandleFunc("/reservations/{id}", adminHandler.AdminDeleteReservation).Methods("DELETE")
+	admin.HandleFunc("/spaces/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT")
 
 	port := os.Getenv("PORT")
 	if port == "" {
