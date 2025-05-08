@@ -129,3 +129,20 @@ func (r *ReservationRepository) CheckAvailability(vehicleType string) (int, erro
 	err := r.DB.QueryRow(`SELECT available_spaces FROM vehicle_spaces WHERE vehicle_type = $1`, vehicleType).Scan(&available)
 	return available, err
 }
+
+func (r *ReservationRepository) ListVehicleSpaces() ([]db.VehicleSpace, error) {
+	rows, err := r.DB.Query(`SELECT id, vehicle_type, total_spaces, available_spaces FROM vehicle_spaces ORDER BY vehicle_type`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var spaces []db.VehicleSpace
+	for rows.Next() {
+		var vs db.VehicleSpace
+		if err := rows.Scan(&vs.ID, &vs.VehicleType, &vs.TotalSpaces, &vs.AvailableSpaces); err == nil {
+			spaces = append(spaces, vs)
+		}
+	}
+	return spaces, nil
+}

@@ -80,3 +80,13 @@ func (h *AdminHandler) UpdateVehicleSpaces(w http.ResponseWriter, r *http.Reques
 	}
 	json.NewEncoder(w).Encode(map[string]string{"message": "Vehicle spaces updated"})
 }
+
+func (h *AdminHandler) ListVehicleSpaces(w http.ResponseWriter, r *http.Request) {
+	spaces, err := h.Service.ListVehicleSpaces()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(spaces)
+}

@@ -45,7 +45,7 @@ func main() {
 	r := mux.NewRouter()
 
 	// Public endpoints
-	r.HandleFunc("/api/availability", userReservationHandler.CheckAvailability).Methods("POST")
+	r.HandleFunc("/api/availability", userReservationHandler.CheckAvailability).Methods("GET")
 	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.UpdateReservation).Methods("PUT")
@@ -61,6 +61,7 @@ func main() {
 	adminRouter.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET")
 	adminRouter.HandleFunc("/reservations/{id}", adminHandler.AdminUpdateReservation).Methods("PUT")
 	adminRouter.HandleFunc("/reservations/{id}", adminHandler.AdminDeleteReservation).Methods("DELETE")
+	adminRouter.HandleFunc("/spaces", adminHandler.ListVehicleSpaces).Methods("GET")
 	adminRouter.HandleFunc("/spaces/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT")
 
 	port := os.Getenv("PORT")

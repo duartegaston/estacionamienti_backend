@@ -75,3 +75,7 @@ func (s *ReservationService) CheckAvailability(vehicleType string) (bool, error)
 	}
 	return available > 0, nil
 }
+
+func (s *ReservationService) ListVehicleSpaces() ([]db.VehicleSpace, error) {
+	return s.Repo.ListVehicleSpaces()
+}
