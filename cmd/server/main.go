@@ -61,8 +61,8 @@ func main() {
 	adminRouter.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET")
 	adminRouter.HandleFunc("/reservations/{id}", adminHandler.AdminUpdateReservation).Methods("PUT")
 	adminRouter.HandleFunc("/reservations/{id}", adminHandler.AdminDeleteReservation).Methods("DELETE")
-	adminRouter.HandleFunc("/spaces", adminHandler.ListVehicleSpaces).Methods("GET")
-	adminRouter.HandleFunc("/spaces/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT")
+	adminRouter.HandleFunc("/vehicle-spaces", adminHandler.ListVehicleSpaces).Methods("GET")
+	adminRouter.HandleFunc("/vehicle-spaces/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT")
 
 	port := os.Getenv("PORT")
 	if port == "" {
