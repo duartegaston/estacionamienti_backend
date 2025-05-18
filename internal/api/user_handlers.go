@@ -19,12 +19,14 @@ func NewUserReservationHandler(svc *service.ReservationService) *UserReservation
 func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		VehicleType string `json:"vehicle_type"`
+		StartTime   string `json:"start_time"`
+		EndTime     string `json:"end_time"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	available, err := h.Service.CheckAvailability(req.VehicleType)
+	available, err := h.Service.CheckAvailability(req)
 	if err != nil {
 		http.Error(w, "Error checking availability", http.StatusInternalServerError)
 		return
@@ -53,7 +55,14 @@ func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *htt
 
 func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
-	res, err := h.Service.GetReservationByCode(code)
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	res, err := h.Service.GetReservationByCode(code, req)
 	if err != nil {
 		http.Error(w, "Reservation not found", http.StatusNotFound)
 		return
@@ -63,12 +72,27 @@ func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.R
 
 func (h *UserReservationHandler) UpdateReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
-	var updates map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
+	var req struct {
+		VehicleType string `json:"vehicle_type"`
+		StartTime   string `json:"start_time"`
+		EndTime     string `json:"end_time"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	err := h.Service.UpdateReservationByCode(code, updates)
+	available, err := h.Service.CheckAvailability(req)
+	if err != nil {
+		http.Error(w, "Error checking availability", http.StatusInternalServerError)
+		return
+	}
+	if !available {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"available": available,
+		})
+		return
+	}
+	err = h.Service.UpdateReservationByCode(code, req)
 	if err != nil {
 		http.Error(w, "Could not update reservation", http.StatusInternalServerError)
 		return
@@ -84,4 +108,13 @@ func (h *UserReservationHandler) CancelReservation(w http.ResponseWriter, r *htt
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]string{"message": "Reservation cancelled"})
+}
+
+func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Request) {
+	res, err := h.Service.GetPrices()
+	if err != nil {
+		http.Error(w, "Could not get prices", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(res)
 }

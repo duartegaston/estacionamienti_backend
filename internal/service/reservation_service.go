@@ -32,18 +32,37 @@ func (s *ReservationService) CreateReservation(req *db.Reservation) (string, err
 	if available <= 0 {
 		return "", errors.New("no available spots")
 	}
+
+	// Generar código de reserva
 	code := fmt.Sprintf("%08X", time.Now().UnixNano()%100000000)
 	req.ReservationCode = code
 	req.Status = "active"
+
+	// Crear la reserva
 	err = s.Repo.CreateReservation(req)
 	if err != nil {
 		return "", err
 	}
-	// Decrement available spots
-	_, err = s.Repo.DB.Exec("UPDATE vehicle_spaces SET available_spaces = available_spaces - 1 WHERE vehicle_type = $1", req.VehicleType)
+
+	// Obtener vehicle_type_id
+	var vehicleTypeID int
+	err = s.Repo.DB.QueryRow(`
+		SELECT id FROM vehicle_types WHERE name = $1
+	`, req.VehicleType).Scan(&vehicleTypeID)
+	if err != nil {
+		return "", fmt.Errorf("error getting vehicle_type_id: %w", err)
+	}
+
+	// Decrementar available_spaces usando vehicle_type_id
+	_, err = s.Repo.DB.Exec(`
+		UPDATE vehicle_spaces
+		SET available_spaces = available_spaces - 1
+		WHERE vehicle_type_id = $1
+	`, vehicleTypeID)
 	if err != nil {
 		return "", err
 	}
+
 	return code, nil
 }
 

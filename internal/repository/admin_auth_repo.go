@@ -8,13 +8,13 @@ import (
 
 type Admin struct {
 	ID           int
-	Email        string
+	User         string
 	PasswordHash string
 }
 
 type AdminAuthRepository interface {
-	GetByEmail(email string) (*Admin, error)
-	CreateNewUser(email, password string) error
+	GetByEmail(user string) (*Admin, error)
+	CreateNewUser(user, password string) error
 }
 
 type adminAuthRepository struct {
@@ -27,8 +27,8 @@ func NewAdminAuthRepository(db *sql.DB) AdminAuthRepository {
 
 func (r *adminAuthRepository) GetByEmail(email string) (*Admin, error) {
 	var admin Admin
-	err := r.db.QueryRow("SELECT email, password_hash FROM admins WHERE email = $1", email).
-		Scan(&admin.Email, &admin.PasswordHash)
+	err := r.db.QueryRow("SELECT user_name, password_hash FROM admins WHERE user_name = $1", email).
+		Scan(&admin.User, &admin.PasswordHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -38,15 +38,15 @@ func (r *adminAuthRepository) GetByEmail(email string) (*Admin, error) {
 	return &admin, nil
 }
 
-func (r *adminAuthRepository) CreateNewUser(email, password string) error {
+func (r *adminAuthRepository) CreateNewUser(user, password string) error {
 	// Hashear la contraseña usando bcrypt
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
-	// Insertar el admin con el password hasheado
-	query := "INSERT INTO admins (email, password_hash) VALUES ($1, $2)"
-	_, err = r.db.Exec(query, email, hashedPassword)
+
+	query := "INSERT INTO admins (user_name, password_hash) VALUES ($1, $2)"
+	_, err = r.db.Exec(query, user, hashedPassword)
 	if err != nil {
 		return err
 	}

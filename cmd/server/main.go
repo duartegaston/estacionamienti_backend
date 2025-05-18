@@ -50,6 +50,7 @@ func main() {
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.UpdateReservation).Methods("PUT")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE")
+	r.HandleFunc("/api/prices", userReservationHandler.GetPrices).Methods("GET")
 
 	// Admin login
 	r.HandleFunc("/api/login", adminAuthHandler.CreateUserAdmin).Methods("POST")
@@ -59,8 +60,8 @@ func main() {
 	adminRouter := r.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(auth.AdminAuthMiddleware)
 	adminRouter.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET")
-	adminRouter.HandleFunc("/reservations/{id}", adminHandler.AdminUpdateReservation).Methods("PUT")
-	adminRouter.HandleFunc("/reservations/{id}", adminHandler.AdminDeleteReservation).Methods("DELETE")
+	adminRouter.HandleFunc("/reservations/{code}", adminHandler.AdminUpdateReservation).Methods("PUT")
+	adminRouter.HandleFunc("/reservations/{code}", adminHandler.AdminDeleteReservation).Methods("DELETE")
 	adminRouter.HandleFunc("/vehicle-spaces", adminHandler.ListVehicleSpaces).Methods("GET")
 	adminRouter.HandleFunc("/vehicle-spaces/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT")
 

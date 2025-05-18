@@ -20,7 +20,8 @@ func NewAdminHandler(svc *service.ReservationService) *AdminHandler {
 func (h *AdminHandler) ListReservations(w http.ResponseWriter, r *http.Request) {
 	date := r.URL.Query().Get("date")
 	vehicleType := r.URL.Query().Get("vehicle_type")
-	reservations, err := h.Service.ListReservations(date, vehicleType)
+	status := r.URL.Query().Get("status")
+	reservations, err := h.Service.ListReservations(date, vehicleType, status)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
@@ -29,18 +30,24 @@ func (h *AdminHandler) ListReservations(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *AdminHandler) AdminUpdateReservation(w http.ResponseWriter, r *http.Request) {
-	idStr := mux.Vars(r)["id"]
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
-		return
-	}
+	code := mux.Vars(r)["code"]
 	var req db.Reservation
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	err = h.Service.UpdateReservationByID(id, &req)
+	available, err := h.Service.CheckAvailability(req)
+	if err != nil {
+		http.Error(w, "Error checking availability", http.StatusInternalServerError)
+		return
+	}
+	if !available {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"available": available,
+		})
+		return
+	}
+	err = h.Service.UpdateReservationByID(code, &req)
 	if err != nil {
 		http.Error(w, "Could not update reservation", http.StatusInternalServerError)
 		return

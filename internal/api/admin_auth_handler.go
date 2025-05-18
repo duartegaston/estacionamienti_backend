@@ -15,7 +15,7 @@ func NewAdminAuthHandler(svc service.AdminAuthService) *AdminAuthHandler {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email"`
+	User     string `json:"user"`
 	Password string `json:"password"`
 }
 
@@ -30,7 +30,7 @@ func (h *AdminAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.service.Login(req.Email, req.Password)
+	token, err := h.service.Login(req.User, req.Password)
 	if err != nil {
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
@@ -43,19 +43,17 @@ func (h *AdminAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 func (h *AdminAuthHandler) CreateUserAdmin(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Email    string `json:"email"`
+		User     string `json:"user"`
 		Password string `json:"password"`
 	}
 
-	// Decodificamos el cuerpo de la solicitud
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Llamamos al servicio para registrar el admin
-	err = h.service.CreateAdmin(request.Email, request.Password)
+	err = h.service.CreateAdmin(request.User, request.Password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

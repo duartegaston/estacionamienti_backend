@@ -15,21 +15,27 @@ func NewReservationRepository(db *sql.DB) *ReservationRepository {
 }
 
 func (r *ReservationRepository) ListReservations(date, vehicleType string) ([]db.Reservation, error) {
-	query := "SELECT id, reservation_code, entry_time, exit_time, vehicle_type, full_name, email, phone, license_plate, vehicle_model, status, created_at, updated_at FROM reservations WHERE 1=1"
+	query := `
+	SELECT
+		r.id, r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, r.vehicle_plate, r.vehicle_model,
+		r.status, r.start_time, r.end_time, r.created_at, r.updated_at
+	FROM reservations r
+	JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
+	WHERE 1=1`
 	args := []interface{}{}
 	idx := 1
 
 	if date != "" {
-		query += " AND DATE(entry_time) = $" + strconv.Itoa(idx)
+		query += " AND DATE(r.start_time) = $" + strconv.Itoa(idx)
 		args = append(args, date)
 		idx++
 	}
 	if vehicleType != "" {
-		query += " AND vehicle_type = $" + strconv.Itoa(idx)
+		query += " AND vt.name = $" + strconv.Itoa(idx)
 		args = append(args, vehicleType)
 		idx++
 	}
-	query += " ORDER BY entry_time DESC"
+	query += " ORDER BY r.start_time DESC"
 
 	rows, err := r.DB.Query(query, args...)
 	if err != nil {
@@ -41,7 +47,8 @@ func (r *ReservationRepository) ListReservations(date, vehicleType string) ([]db
 	for rows.Next() {
 		var res db.Reservation
 		err := rows.Scan(
-			&res.ID, &res.ReservationCode, &res.EntryTime, &res.ExitTime, &res.VehicleType, &res.FullName, &res.Email, &res.Phone, &res.LicensePlate, &res.VehicleModel, &res.Status, &res.CreatedAt, &res.UpdatedAt,
+			&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel,
+			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
 		)
 		if err == nil {
 			reservations = append(reservations, res)
@@ -52,8 +59,13 @@ func (r *ReservationRepository) ListReservations(date, vehicleType string) ([]db
 
 func (r *ReservationRepository) GetReservationByCode(code string) (*db.Reservation, error) {
 	var res db.Reservation
-	err := r.DB.QueryRow(`SELECT id, reservation_code, entry_time, exit_time, vehicle_type, full_name, email, phone, license_plate, vehicle_model, status, created_at, updated_at FROM reservations WHERE reservation_code = $1`, code).
-		Scan(&res.ID, &res.ReservationCode, &res.EntryTime, &res.ExitTime, &res.VehicleType, &res.FullName, &res.Email, &res.Phone, &res.LicensePlate, &res.VehicleModel, &res.Status, &res.CreatedAt, &res.UpdatedAt)
+	err := r.DB.QueryRow(`
+	SELECT r.id, r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, r.vehicle_plate, r.vehicle_model,
+	       r.status, r.start_time, r.end_time, r.created_at, r.updated_at
+	FROM reservations r
+	WHERE r.code = $1`, code).
+		Scan(&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel,
+			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -61,77 +73,97 @@ func (r *ReservationRepository) GetReservationByCode(code string) (*db.Reservati
 }
 
 func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
-	_, err := r.DB.Exec(`
-        INSERT INTO reservations
-        (reservation_code, entry_time, exit_time, vehicle_type, full_name, email, phone, license_plate, vehicle_model, status)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active')
-    `,
-		res.ReservationCode, res.EntryTime, res.ExitTime, res.VehicleType, res.FullName, res.Email, res.Phone, res.LicensePlate, res.VehicleModel,
-	)
-	return err
+	query := `
+	INSERT INTO reservations
+	(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, status, start_time, end_time)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+	RETURNING id, created_at, updated_at`
+	return r.DB.QueryRow(query,
+		res.Code, res.UserName, res.UserEmail, res.UserPhone, res.VehicleTypeID, res.VehiclePlate, res.VehicleModel, res.Status, res.StartTime, res.EndTime,
+	).Scan(&res.ID, &res.CreatedAt, &res.UpdatedAt)
 }
 
 func (r *ReservationRepository) UpdateReservationByCode(code string, updates map[string]interface{}) error {
-	// Build query dynamically or use a fixed set of fields for update
-	// For brevity, only user info fields updated here
-	_, err := r.DB.Exec(`
-        UPDATE reservations SET full_name=$1, email=$2, phone=$3, license_plate=$4, vehicle_model=$5, updated_at=NOW()
-        WHERE reservation_code=$6 AND status='active'
-    `, updates["full_name"], updates["email"], updates["phone"], updates["license_plate"], updates["vehicle_model"], code)
+	// This is a generic update, but for simplicity, let's focus on status and end_time
+	query := "UPDATE reservations SET "
+	args := []interface{}{}
+	idx := 1
+	for k, v := range updates {
+		if idx > 1 {
+			query += ", "
+		}
+		query += k + " = $" + strconv.Itoa(idx)
+		args = append(args, v)
+		idx++
+	}
+	query += ", updated_at = NOW() WHERE code = $" + strconv.Itoa(idx)
+	args = append(args, code)
+	_, err := r.DB.Exec(query, args...)
 	return err
 }
 
 func (r *ReservationRepository) CancelReservation(code string) (string, error) {
-	tx, err := r.DB.Begin()
+	query := `UPDATE reservations SET status = 'cancelled', updated_at = NOW() WHERE code = $1 RETURNING status`
+	var status string
+	err := r.DB.QueryRow(query, code).Scan(&status)
 	if err != nil {
 		return "", err
 	}
-	defer tx.Rollback()
-	var vehicleType string
-	err = tx.QueryRow(`SELECT vehicle_type FROM reservations WHERE reservation_code=$1 AND status='active'`, code).Scan(&vehicleType)
-	if err != nil {
-		return "", err
-	}
-	_, err = tx.Exec(`UPDATE reservations SET status='cancelled', updated_at=NOW() WHERE reservation_code=$1`, code)
-	if err != nil {
-		return "", err
-	}
-	_, err = tx.Exec(`UPDATE vehicle_spaces SET available_spaces=available_spaces+1 WHERE vehicle_type=$1`, vehicleType)
-	if err != nil {
-		return "", err
-	}
-	if err := tx.Commit(); err != nil {
-		return "", err
-	}
-	return vehicleType, nil
-}
-
-func (r *ReservationRepository) UpdateReservationByID(id int, res *db.Reservation) error {
-	_, err := r.DB.Exec(`
-        UPDATE reservations SET entry_time=$1, exit_time=$2, vehicle_type=$3, full_name=$4, email=$5, phone=$6, license_plate=$7, vehicle_model=$8, status=$9, updated_at=NOW()
-        WHERE id=$10
-    `, res.EntryTime, res.ExitTime, res.VehicleType, res.FullName, res.Email, res.Phone, res.LicensePlate, res.VehicleModel, res.Status, id)
-	return err
+	return status, nil
 }
 
 func (r *ReservationRepository) DeleteReservationByID(id int) error {
-	_, err := r.DB.Exec(`DELETE FROM reservations WHERE id=$1`, id)
+	_, err := r.DB.Exec("DELETE FROM reservations WHERE id = $1", id)
+	return err
+}
+
+func (r *ReservationRepository) UpdateReservationByID(id int, res *db.Reservation) error {
+	query := `UPDATE reservations SET
+		code = $1,
+		user_name = $2,
+		user_email = $3,
+		user_phone = $4,
+		vehicle_type_id = $5,
+		vehicle_plate = $6,
+		vehicle_model = $7,
+		status = $8,
+		start_time = $9,
+		end_time = $10,
+		updated_at = NOW()
+	WHERE id = $11`
+	_, err := r.DB.Exec(query,
+		res.Code, res.UserName, res.UserEmail, res.UserPhone, res.VehicleTypeID, res.VehiclePlate, res.VehicleModel, res.Status, res.StartTime, res.EndTime, id)
 	return err
 }
 
 func (r *ReservationRepository) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
-	_, err := r.DB.Exec(`UPDATE vehicle_spaces SET total_spaces=$1, available_spaces=$2 WHERE vehicle_type=$3`, totalSpaces, availableSpaces, vehicleType)
+	_, err := r.DB.Exec(`
+		UPDATE vehicle_spaces vs
+		SET total_spaces = $1,
+			available_spaces = $2
+		FROM vehicle_types vt
+		WHERE vs.vehicle_type_id = vt.id AND vt.name = $3
+	`, totalSpaces, availableSpaces, vehicleType)
 	return err
 }
 
 func (r *ReservationRepository) CheckAvailability(vehicleType string) (int, error) {
 	var available int
-	err := r.DB.QueryRow(`SELECT available_spaces FROM vehicle_spaces WHERE vehicle_type = $1`, vehicleType).Scan(&available)
+	err := r.DB.QueryRow(`
+		SELECT vs.available_spaces
+		FROM vehicle_spaces vs
+		JOIN vehicle_types vt ON vt.id = vs.vehicle_type_id
+		WHERE vt.name = $1
+	`, vehicleType).Scan(&available)
 	return available, err
 }
 
 func (r *ReservationRepository) ListVehicleSpaces() ([]db.VehicleSpace, error) {
-	rows, err := r.DB.Query(`SELECT id, vehicle_type, total_spaces, available_spaces FROM vehicle_spaces ORDER BY vehicle_type`)
+	rows, err := r.DB.Query(`
+		SELECT vt.name, vs.total_spaces, vs.available_spaces
+		FROM vehicle_spaces vs
+		JOIN vehicle_types vt ON vs.vehicle_type_id = vt.id
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -140,9 +172,11 @@ func (r *ReservationRepository) ListVehicleSpaces() ([]db.VehicleSpace, error) {
 	var spaces []db.VehicleSpace
 	for rows.Next() {
 		var vs db.VehicleSpace
-		if err := rows.Scan(&vs.ID, &vs.VehicleType, &vs.TotalSpaces, &vs.AvailableSpaces); err == nil {
-			spaces = append(spaces, vs)
+		err := rows.Scan(&vs.VehicleType, &vs.TotalSpaces, &vs.AvailableSpaces)
+		if err != nil {
+			continue
 		}
+		spaces = append(spaces, vs)
 	}
 	return spaces, nil
 }
