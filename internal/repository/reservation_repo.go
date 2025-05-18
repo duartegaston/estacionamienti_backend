@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"estacionamienti/internal/db"
+	"estacionamienti/internal/entities"
 	"strconv"
 )
 
@@ -13,6 +14,160 @@ type ReservationRepository struct {
 func NewReservationRepository(db *sql.DB) *ReservationRepository {
 	return &ReservationRepository{DB: db}
 }
+
+func (r *ReservationRepository) CheckAvailability(req entities.ReservationRequest) (int, error) {
+	var available int
+
+	query := `
+		SELECT 
+			vs.total_spaces - COUNT(r.id) AS available_spaces
+		FROM vehicle_spaces vs
+		JOIN vehicle_types vt ON vt.id = vs.vehicle_type_id
+		LEFT JOIN reservations r 
+			ON r.vehicle_type_id = vt.id
+			AND r.status = 'active'
+			AND r.start_time < $2 AND r.end_time > $1
+		WHERE vt.name = $3
+		GROUP BY vs.total_spaces
+	`
+
+	err := r.DB.QueryRow(query, req.StartTime, req.EndTime, req.VehicleType).Scan(&available)
+	return available, err
+}
+
+func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
+	query := `
+		INSERT INTO reservations
+		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method, status, start_time, end_time)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		RETURNING id, created_at, updated_at`
+	return r.DB.QueryRow(query,
+		res.Code,
+		res.UserName,
+		res.UserEmail,
+		res.UserPhone,
+		res.VehicleTypeID,
+		res.VehiclePlate,
+		res.VehicleModel,
+		res.PaymentMethod,
+		res.Status,
+		res.StartTime,
+		res.EndTime,
+	).Scan(&res.ID, &res.CreatedAt, &res.UpdatedAt)
+}
+
+func (r *ReservationRepository) GetVehicleTypeIDByName(name string, id *int) error {
+	return r.DB.QueryRow(`SELECT id FROM vehicle_types WHERE name = $1`, name).Scan(id)
+}
+
+func (r *ReservationRepository) GetReservationByCode(code, email string) (*db.Reservation, error) {
+	var res db.Reservation
+	err := r.DB.QueryRow(`
+		SELECT r.id, r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, r.vehicle_plate, r.vehicle_model,
+		       r.payment_method, r.status, r.start_time, r.end_time, r.created_at, r.updated_at
+		FROM reservations r
+		WHERE r.code = $1 AND r.user_email = $2
+	`, code, email).Scan(
+		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel,
+		&res.PaymentMethod, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (r *ReservationRepository) UpdateReservationByCode(code string, res db.Reservation) error {
+	query := `UPDATE reservations SET
+		user_name = $1,
+		user_email = $2,
+		user_phone = $3,
+		vehicle_type_id = $4,
+		vehicle_plate = $5,
+		vehicle_model = $6,
+		payment_method = $7,
+		status = $8,
+		start_time = $9,
+		end_time = $10,
+		updated_at = NOW()
+	WHERE code = $11`
+
+	_, err := r.DB.Exec(query,
+		res.UserName,
+		res.UserEmail,
+		res.UserPhone,
+		res.VehicleTypeID,
+		res.VehiclePlate,
+		res.VehicleModel,
+		res.PaymentMethod,
+		res.Status,
+		res.StartTime,
+		res.EndTime,
+		code,
+	)
+
+	return err
+}
+
+func (r *ReservationRepository) CancelReservation(code string) (string, error) {
+	query := `UPDATE reservations SET status = 'cancelled', updated_at = NOW() WHERE code = $1 RETURNING status`
+	var status string
+	err := r.DB.QueryRow(query, code).Scan(&status)
+	if err != nil {
+		return "", err
+	}
+	return status, nil
+}
+
+func (r *ReservationRepository) GetPrices() ([]entities.PriceResponse, error) {
+	query := `
+	SELECT vt.name as vehicle_type, rt.name as reservation_time, vp.price
+	FROM vehicle_prices vp
+	JOIN vehicle_types vt ON vp.vehicle_type_id = vt.id
+	JOIN reservation_times rt ON vp.reservation_time_id = rt.id
+	ORDER BY vt.name, rt.name
+	`
+
+	rows, err := r.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var prices []entities.PriceResponse
+	for rows.Next() {
+		var p entities.PriceResponse
+		if err := rows.Scan(&p.VehicleType, &p.ReservationTime, &p.Price); err != nil {
+			return nil, err
+		}
+		prices = append(prices, p)
+	}
+
+	return prices, nil
+}
+
+func (r *ReservationRepository) GetVehicleTypes() ([]db.VehicleType, error) {
+	query := `SELECT id, name FROM vehicle_types ORDER BY name`
+
+	rows, err := r.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var types []db.VehicleType
+	for rows.Next() {
+		var vt db.VehicleType
+		if err := rows.Scan(&vt.ID, &vt.Name); err != nil {
+			return nil, err
+		}
+		types = append(types, vt)
+	}
+
+	return types, nil
+}
+
+// ADMIN FUNCTIONS
 
 func (r *ReservationRepository) ListReservations(date, vehicleType string) ([]db.Reservation, error) {
 	query := `
@@ -57,85 +212,6 @@ func (r *ReservationRepository) ListReservations(date, vehicleType string) ([]db
 	return reservations, nil
 }
 
-func (r *ReservationRepository) GetReservationByCode(code string) (*db.Reservation, error) {
-	var res db.Reservation
-	err := r.DB.QueryRow(`
-	SELECT r.id, r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, r.vehicle_plate, r.vehicle_model,
-	       r.status, r.start_time, r.end_time, r.created_at, r.updated_at
-	FROM reservations r
-	WHERE r.code = $1`, code).
-		Scan(&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel,
-			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return &res, nil
-}
-
-func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
-	query := `
-	INSERT INTO reservations
-	(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, status, start_time, end_time)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	RETURNING id, created_at, updated_at`
-	return r.DB.QueryRow(query,
-		res.Code, res.UserName, res.UserEmail, res.UserPhone, res.VehicleTypeID, res.VehiclePlate, res.VehicleModel, res.Status, res.StartTime, res.EndTime,
-	).Scan(&res.ID, &res.CreatedAt, &res.UpdatedAt)
-}
-
-func (r *ReservationRepository) UpdateReservationByCode(code string, updates map[string]interface{}) error {
-	// This is a generic update, but for simplicity, let's focus on status and end_time
-	query := "UPDATE reservations SET "
-	args := []interface{}{}
-	idx := 1
-	for k, v := range updates {
-		if idx > 1 {
-			query += ", "
-		}
-		query += k + " = $" + strconv.Itoa(idx)
-		args = append(args, v)
-		idx++
-	}
-	query += ", updated_at = NOW() WHERE code = $" + strconv.Itoa(idx)
-	args = append(args, code)
-	_, err := r.DB.Exec(query, args...)
-	return err
-}
-
-func (r *ReservationRepository) CancelReservation(code string) (string, error) {
-	query := `UPDATE reservations SET status = 'cancelled', updated_at = NOW() WHERE code = $1 RETURNING status`
-	var status string
-	err := r.DB.QueryRow(query, code).Scan(&status)
-	if err != nil {
-		return "", err
-	}
-	return status, nil
-}
-
-func (r *ReservationRepository) DeleteReservationByID(id int) error {
-	_, err := r.DB.Exec("DELETE FROM reservations WHERE id = $1", id)
-	return err
-}
-
-func (r *ReservationRepository) UpdateReservationByID(id int, res *db.Reservation) error {
-	query := `UPDATE reservations SET
-		code = $1,
-		user_name = $2,
-		user_email = $3,
-		user_phone = $4,
-		vehicle_type_id = $5,
-		vehicle_plate = $6,
-		vehicle_model = $7,
-		status = $8,
-		start_time = $9,
-		end_time = $10,
-		updated_at = NOW()
-	WHERE id = $11`
-	_, err := r.DB.Exec(query,
-		res.Code, res.UserName, res.UserEmail, res.UserPhone, res.VehicleTypeID, res.VehiclePlate, res.VehicleModel, res.Status, res.StartTime, res.EndTime, id)
-	return err
-}
-
 func (r *ReservationRepository) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
 	_, err := r.DB.Exec(`
 		UPDATE vehicle_spaces vs
@@ -145,17 +221,6 @@ func (r *ReservationRepository) UpdateVehicleSpaces(vehicleType string, totalSpa
 		WHERE vs.vehicle_type_id = vt.id AND vt.name = $3
 	`, totalSpaces, availableSpaces, vehicleType)
 	return err
-}
-
-func (r *ReservationRepository) CheckAvailability(vehicleType string) (int, error) {
-	var available int
-	err := r.DB.QueryRow(`
-		SELECT vs.available_spaces
-		FROM vehicle_spaces vs
-		JOIN vehicle_types vt ON vt.id = vs.vehicle_type_id
-		WHERE vt.name = $1
-	`, vehicleType).Scan(&available)
-	return available, err
 }
 
 func (r *ReservationRepository) ListVehicleSpaces() ([]db.VehicleSpace, error) {

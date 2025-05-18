@@ -1,8 +1,8 @@
 package service
 
 import (
-	"errors"
 	"estacionamienti/internal/db"
+	"estacionamienti/internal/entities"
 	"estacionamienti/internal/repository"
 	"fmt"
 	"time"
@@ -16,49 +16,38 @@ func NewReservationService(repo *repository.ReservationRepository) *ReservationS
 	return &ReservationService{Repo: repo}
 }
 
-func (s *ReservationService) ListReservations(date, vehicleType string) ([]db.Reservation, error) {
-	return s.Repo.ListReservations(date, vehicleType)
+func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) (bool, error) {
+	available, err := s.Repo.CheckAvailability(req)
+	if err != nil {
+		return false, err
+	}
+	return available > 0, nil
 }
 
-func (s *ReservationService) GetReservationByCode(code string) (*db.Reservation, error) {
-	return s.Repo.GetReservationByCode(code)
-}
-
-func (s *ReservationService) CreateReservation(req *db.Reservation) (string, error) {
-	available, err := s.Repo.CheckAvailability(req.VehicleType)
-	if err != nil {
-		return "", err
-	}
-	if available <= 0 {
-		return "", errors.New("no available spots")
-	}
-
-	// Generar código de reserva
-	code := fmt.Sprintf("%08X", time.Now().UnixNano()%100000000)
-	req.ReservationCode = code
-	req.Status = "active"
-
-	// Crear la reserva
-	err = s.Repo.CreateReservation(req)
-	if err != nil {
-		return "", err
-	}
-
-	// Obtener vehicle_type_id
+func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (string, error) {
 	var vehicleTypeID int
-	err = s.Repo.DB.QueryRow(`
-		SELECT id FROM vehicle_types WHERE name = $1
-	`, req.VehicleType).Scan(&vehicleTypeID)
+	err := s.Repo.GetVehicleTypeIDByName(req.VehicleType, &vehicleTypeID)
 	if err != nil {
-		return "", fmt.Errorf("error getting vehicle_type_id: %w", err)
+		return "", fmt.Errorf("vehicle type not found: %w", err)
 	}
 
-	// Decrementar available_spaces usando vehicle_type_id
-	_, err = s.Repo.DB.Exec(`
-		UPDATE vehicle_spaces
-		SET available_spaces = available_spaces - 1
-		WHERE vehicle_type_id = $1
-	`, vehicleTypeID)
+	code := fmt.Sprintf("%08X", time.Now().UnixNano()%100000000)
+
+	reservation := &db.Reservation{
+		Code:          code,
+		UserName:      req.UserName,
+		UserEmail:     req.UserEmail,
+		UserPhone:     req.UserPhone,
+		VehicleTypeID: vehicleTypeID,
+		VehiclePlate:  req.VehiclePlate,
+		VehicleModel:  req.VehicleModel,
+		PaymentMethod: req.PaymentMethod,
+		Status:        "active",
+		StartTime:     req.StartTime,
+		EndTime:       req.EndTime,
+	}
+
+	err = s.Repo.CreateReservation(reservation)
 	if err != nil {
 		return "", err
 	}
@@ -66,8 +55,27 @@ func (s *ReservationService) CreateReservation(req *db.Reservation) (string, err
 	return code, nil
 }
 
-func (s *ReservationService) UpdateReservationByCode(code string, updates map[string]interface{}) error {
-	return s.Repo.UpdateReservationByCode(code, updates)
+func (s *ReservationService) GetReservationByCode(code, email string) (*db.Reservation, error) {
+	return s.Repo.GetReservationByCode(code, email)
+}
+
+func (s *ReservationService) UpdateReservationByCode(code string, req entities.ReservationRequest) error {
+	res := db.Reservation{
+		Code:          code,
+		UserName:      req.UserName,
+		UserEmail:     req.UserEmail,
+		UserPhone:     req.UserPhone,
+		VehicleTypeID: req.VehicleTypeID,
+		VehiclePlate:  req.VehiclePlate,
+		VehicleModel:  req.VehicleModel,
+		PaymentMethod: req.PaymentMethod,
+		Status:        req.Status,
+		StartTime:     req.StartTime,
+		EndTime:       req.EndTime,
+	}
+
+	// Llamar al repository
+	return s.Repo.UpdateReservationByCode(code, res)
 }
 
 func (s *ReservationService) CancelReservation(code string) error {
@@ -75,26 +83,24 @@ func (s *ReservationService) CancelReservation(code string) error {
 	return err
 }
 
-func (s *ReservationService) UpdateReservationByID(id int, res *db.Reservation) error {
-	return s.Repo.UpdateReservationByID(id, res)
+func (s *ReservationService) GetPrices() ([]entities.PriceResponse, error) {
+	return s.Repo.GetPrices()
 }
 
-func (s *ReservationService) DeleteReservationByID(id int) error {
-	return s.Repo.DeleteReservationByID(id)
+func (s *ReservationService) GetVehicleTypes() ([]db.VehicleType, error) {
+	return s.Repo.GetVehicleTypes()
 }
 
-func (s *ReservationService) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
-	return s.Repo.UpdateVehicleSpaces(vehicleType, totalSpaces, availableSpaces)
-}
+// ADMIN FUNCTIONS
 
-func (s *ReservationService) CheckAvailability(vehicleType string) (bool, error) {
-	available, err := s.Repo.CheckAvailability(vehicleType)
-	if err != nil {
-		return false, err
-	}
-	return available > 0, nil
+func (s *ReservationService) ListReservations(date, vehicleType string) ([]db.Reservation, error) {
+	return s.Repo.ListReservations(date, vehicleType)
 }
 
 func (s *ReservationService) ListVehicleSpaces() ([]db.VehicleSpace, error) {
 	return s.Repo.ListVehicleSpaces()
+}
+
+func (s *ReservationService) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
+	return s.Repo.UpdateVehicleSpaces(vehicleType, totalSpaces, availableSpaces)
 }

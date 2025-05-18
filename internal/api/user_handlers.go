@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"estacionamienti/internal/db"
+	"estacionamienti/internal/entities"
 	"estacionamienti/internal/service"
 	"github.com/gorilla/mux"
 	"net/http"
@@ -17,11 +17,7 @@ func NewUserReservationHandler(svc *service.ReservationService) *UserReservation
 }
 
 func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		VehicleType string `json:"vehicle_type"`
-		StartTime   string `json:"start_time"`
-		EndTime     string `json:"end_time"`
-	}
+	var req entities.ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
@@ -37,7 +33,7 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 }
 
 func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
-	var req db.Reservation
+	var req entities.ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
@@ -62,9 +58,9 @@ func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.R
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	res, err := h.Service.GetReservationByCode(code, req)
+	res, err := h.Service.GetReservationByCode(code, req.Email)
 	if err != nil {
-		http.Error(w, "Reservation not found", http.StatusNotFound)
+		http.Error(w, "Get reservation not found", http.StatusNotFound)
 		return
 	}
 	json.NewEncoder(w).Encode(res)
@@ -72,11 +68,7 @@ func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.R
 
 func (h *UserReservationHandler) UpdateReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
-	var req struct {
-		VehicleType string `json:"vehicle_type"`
-		StartTime   string `json:"start_time"`
-		EndTime     string `json:"end_time"`
-	}
+	var req entities.ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
@@ -112,6 +104,15 @@ func (h *UserReservationHandler) CancelReservation(w http.ResponseWriter, r *htt
 
 func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Request) {
 	res, err := h.Service.GetPrices()
+	if err != nil {
+		http.Error(w, "Could not get prices", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(res)
+}
+
+func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.Request) {
+	res, err := h.Service.GetVehicleTypes()
 	if err != nil {
 		http.Error(w, "Could not get prices", http.StatusInternalServerError)
 		return

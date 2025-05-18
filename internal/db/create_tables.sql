@@ -46,6 +46,6 @@ CREATE TABLE vehicle_prices (
 CREATE TABLE vehicle_spaces (
     id SERIAL PRIMARY KEY,
     vehicle_type_id INT NOT NULL REFERENCES vehicle_types(id),
-    spaces INT NOT NULL,
+    total_spaces INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -50,6 +50,7 @@ func main() {
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.UpdateReservation).Methods("PUT")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE")
+	r.HandleFunc("/api/vehicle-types", userReservationHandler.GetVehicleTypes).Methods("GET")
 	r.HandleFunc("/api/prices", userReservationHandler.GetPrices).Methods("GET")
 
 	// Admin login
