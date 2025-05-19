@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"estacionamienti/internal/db"
 	"estacionamienti/internal/entities"
+	"fmt"
 	"strconv"
 )
 
@@ -17,10 +18,9 @@ func NewReservationRepository(db *sql.DB) *ReservationRepository {
 
 func (r *ReservationRepository) CheckAvailability(req entities.ReservationRequest) (int, error) {
 	var available int
-
 	query := `
 		SELECT 
-			vs.total_spaces - COUNT(r.id) AS available_spaces
+			vs.spaces - COUNT(r.id) AS available_spaces
 		FROM vehicle_spaces vs
 		JOIN vehicle_types vt ON vt.id = vs.vehicle_type_id
 		LEFT JOIN reservations r 
@@ -28,10 +28,13 @@ func (r *ReservationRepository) CheckAvailability(req entities.ReservationReques
 			AND r.status = 'active'
 			AND r.start_time < $2 AND r.end_time > $1
 		WHERE vt.name = $3
-		GROUP BY vs.total_spaces
+		GROUP BY vs.spaces
 	`
 
 	err := r.DB.QueryRow(query, req.StartTime, req.EndTime, req.VehicleType).Scan(&available)
+	if err != nil {
+		return 1, fmt.Errorf("Error check availability repository", err)
+	}
 	return available, err
 }
 
@@ -75,38 +78,6 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*db.Re
 		return nil, err
 	}
 	return &res, nil
-}
-
-func (r *ReservationRepository) UpdateReservationByCode(code string, res db.Reservation) error {
-	query := `UPDATE reservations SET
-		user_name = $1,
-		user_email = $2,
-		user_phone = $3,
-		vehicle_type_id = $4,
-		vehicle_plate = $5,
-		vehicle_model = $6,
-		payment_method = $7,
-		status = $8,
-		start_time = $9,
-		end_time = $10,
-		updated_at = NOW()
-	WHERE code = $11`
-
-	_, err := r.DB.Exec(query,
-		res.UserName,
-		res.UserEmail,
-		res.UserPhone,
-		res.VehicleTypeID,
-		res.VehiclePlate,
-		res.VehicleModel,
-		res.PaymentMethod,
-		res.Status,
-		res.StartTime,
-		res.EndTime,
-		code,
-	)
-
-	return err
 }
 
 func (r *ReservationRepository) CancelReservation(code string) (string, error) {

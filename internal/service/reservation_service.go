@@ -59,25 +59,6 @@ func (s *ReservationService) GetReservationByCode(code, email string) (*db.Reser
 	return s.Repo.GetReservationByCode(code, email)
 }
 
-func (s *ReservationService) UpdateReservationByCode(code string, req entities.ReservationRequest) error {
-	res := db.Reservation{
-		Code:          code,
-		UserName:      req.UserName,
-		UserEmail:     req.UserEmail,
-		UserPhone:     req.UserPhone,
-		VehicleTypeID: req.VehicleTypeID,
-		VehiclePlate:  req.VehiclePlate,
-		VehicleModel:  req.VehicleModel,
-		PaymentMethod: req.PaymentMethod,
-		Status:        req.Status,
-		StartTime:     req.StartTime,
-		EndTime:       req.EndTime,
-	}
-
-	// Llamar al repository
-	return s.Repo.UpdateReservationByCode(code, res)
-}
-
 func (s *ReservationService) CancelReservation(code string) error {
 	_, err := s.Repo.CancelReservation(code)
 	return err
@@ -93,7 +74,7 @@ func (s *ReservationService) GetVehicleTypes() ([]db.VehicleType, error) {
 
 // ADMIN FUNCTIONS
 
-func (s *ReservationService) ListReservations(date, vehicleType string) ([]db.Reservation, error) {
+func (s *ReservationService) ListReservations(date, vehicleType, status string) ([]db.Reservation, error) {
 	return s.Repo.ListReservations(date, vehicleType)
 }
 
