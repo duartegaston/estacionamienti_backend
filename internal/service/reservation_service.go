@@ -30,6 +30,7 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 	if err != nil {
 		return "", fmt.Errorf("vehicle type not found: %w", err)
 	}
+	//TODO en base al payment_method obtener el ID al igual que tipo de vehiculo
 
 	code := fmt.Sprintf("%08X", time.Now().UnixNano()%100000000)
 
@@ -41,7 +42,7 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		VehicleTypeID: vehicleTypeID,
 		VehiclePlate:  req.VehiclePlate,
 		VehicleModel:  req.VehicleModel,
-		PaymentMethod: req.PaymentMethod,
+		PaymentMethod: req.PaymentMethod, // TODO: guardar el ID
 		Status:        "active",
 		StartTime:     req.StartTime,
 		EndTime:       req.EndTime,

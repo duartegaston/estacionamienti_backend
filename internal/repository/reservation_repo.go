@@ -63,6 +63,7 @@ func (r *ReservationRepository) GetVehicleTypeIDByName(name string, id *int) err
 	return r.DB.QueryRow(`SELECT id FROM vehicle_types WHERE name = $1`, name).Scan(id)
 }
 
+// TODO: Cambiar por un reservation response para devolver el name de vehiculo y del metodo de pago
 func (r *ReservationRepository) GetReservationByCode(code, email string) (*db.Reservation, error) {
 	var res db.Reservation
 	err := r.DB.QueryRow(`
