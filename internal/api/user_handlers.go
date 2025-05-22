@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"estacionamienti/internal/entities"
 	"estacionamienti/internal/service"
-	"github.com/gorilla/mux"
 	"net/http"
+
+	"github.com/gorilla/mux"
 )
 
 type UserReservationHandler struct {
@@ -16,6 +17,7 @@ func NewUserReservationHandler(svc *service.ReservationService) *UserReservation
 	return &UserReservationHandler{Service: svc}
 }
 
+// TO DO
 func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *http.Request) {
 	var req entities.ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -27,11 +29,13 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 		http.Error(w, "Error checking availability", http.StatusInternalServerError)
 		return
 	}
+	// TODO: Modificar el response para mostrar los horarios disponibles dentro de lo que el user quiere reserva
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"available": available,
 	})
 }
 
+// TO DO
 func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
 	var req entities.ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -49,6 +53,7 @@ func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *htt
 	})
 }
 
+// TO DO en vez de devolver el id del vehicle type, devolver el name
 func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
 	var req struct {
@@ -66,6 +71,7 @@ func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(res)
 }
 
+// TO DO
 func (h *UserReservationHandler) CancelReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
 	err := h.Service.CancelReservation(code)
@@ -88,7 +94,7 @@ func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Reques
 func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.Request) {
 	res, err := h.Service.GetVehicleTypes()
 	if err != nil {
-		http.Error(w, "Could not get prices", http.StatusInternalServerError)
+		http.Error(w, "Could not get vehicle types", http.StatusInternalServerError)
 		return
 	}
 	json.NewEncoder(w).Encode(res)
