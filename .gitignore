@@ -30,6 +30,3 @@ Thumbs.db
 
 # Test output
 coverage.out
-
-# Dependency directories (Go modules)
-/go.sum
