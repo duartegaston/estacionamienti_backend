@@ -91,6 +91,11 @@ func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(res)
 }
 
+// TO DO
+func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWriter, r *http.Request) {
+	return
+}
+
 func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.Request) {
 	res, err := h.Service.GetVehicleTypes()
 	if err != nil {

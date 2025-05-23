@@ -3,8 +3,9 @@ package api
 import (
 	"encoding/json"
 	"estacionamienti/internal/service"
-	"github.com/gorilla/mux"
 	"net/http"
+
+	"github.com/gorilla/mux"
 )
 
 type AdminHandler struct {
@@ -25,6 +26,11 @@ func (h *AdminHandler) ListReservations(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	json.NewEncoder(w).Encode(reservations)
+}
+
+// TO DO
+func (h *AdminHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
+	return
 }
 
 func (h *AdminHandler) AdminDeleteReservation(w http.ResponseWriter, r *http.Request) {
