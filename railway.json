@@ -1,0 +1,12 @@
+{
+    "build": {
+      "env": {
+        "GO111MODULE": "on"
+      },
+      "cmd": "go build -o main ./cmd/server"
+    },
+    "start": {
+      "cmd": "./main"
+    }
+  }
+  
