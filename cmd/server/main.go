@@ -16,7 +16,12 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	if os.Getenv("RAILWAY_ENVIRONMENT") == "" {
+		err := godotenv.Load()
+		if err != nil {
+			log.Println("No .env file found")
+		}
+	}
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL not set")
