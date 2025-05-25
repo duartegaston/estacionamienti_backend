@@ -9,10 +9,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/robfig/cron/v3"
 )
 
 func main() {
@@ -46,6 +48,22 @@ func main() {
 	userReservationHandler := api.NewUserReservationHandler(reservationSvc)
 	adminHandler := api.NewAdminHandler(reservationSvc)
 	adminAuthHandler := api.NewAdminAuthHandler(adminSvc)
+
+	// Cron scheduler
+	//   "@hourly"                   : Ejecutar al inicio de cada hora
+	//   "*/1 * * * *"               : Ejecutar cada minuto (para pruebas, puede ser muy frecuente para producción)
+	c := cron.New(cron.WithLocation(time.Local))
+	_, err = c.AddFunc("@hourly", func() { // <--- CAMBIA "X cantidad de tiempo" aquí
+		log.Println("Executing scheduled task: Update Finished Reservations")
+		if err := reservationSvc.UpdateFinishedReservations(); err != nil {
+			log.Printf("Error during scheduled task: UpdateFinishedReservations: %v", err)
+		}
+	})
+	if err != nil {
+		log.Fatalf("Failed to add cron job: %v", err)
+	}
+	c.Start()
+	log.Println("Cron scheduler started.")
 
 	r := mux.NewRouter()
 

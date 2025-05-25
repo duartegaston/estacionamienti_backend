@@ -5,6 +5,7 @@ import (
 	"estacionamienti/internal/entities"
 	"estacionamienti/internal/repository"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -85,4 +86,31 @@ func (s *ReservationService) ListVehicleSpaces() ([]db.VehicleSpace, error) {
 
 func (s *ReservationService) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
 	return s.Repo.UpdateVehicleSpaces(vehicleType, totalSpaces, availableSpaces)
+}
+
+// JOBS
+
+// UpdateFinishedReservations busca reservas activas que han finalizado y actualiza su estado a "finished".
+func (s *ReservationService) UpdateFinishedReservations() error {
+	log.Println("Cron Job: Checking for reservations to mark as 'finished'...")
+
+	reservationIDs, err := s.Repo.GetActiveReservationIDsPastEndTime()
+	if err != nil {
+		return fmt.Errorf("cron job: failed to get active reservations past end time: %w", err)
+	}
+
+	if len(reservationIDs) == 0 {
+		log.Println("Cron Job: No active reservations found past their end time.")
+		return nil
+	}
+
+	log.Printf("Cron Job: Found %d reservations to mark as 'finished'. IDs: %v", len(reservationIDs), reservationIDs)
+
+	err = s.Repo.UpdateReservationStatuses(reservationIDs, "finished")
+	if err != nil {
+		return fmt.Errorf("cron job: failed to update reservation statuses: %w", err)
+	}
+
+	log.Printf("Cron Job: Successfully updated %d reservations to 'finished'.", len(reservationIDs))
+	return nil
 }
