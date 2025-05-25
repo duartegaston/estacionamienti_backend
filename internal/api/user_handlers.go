@@ -35,7 +35,7 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 	})
 }
 
-// TO DO
+// TO DO hacer cobro, enviar sms y email
 func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
 	var req entities.ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -53,7 +53,6 @@ func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *htt
 	})
 }
 
-// TO DO en vez de devolver el id del vehicle type, devolver el name
 func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
 	var req struct {
@@ -71,7 +70,7 @@ func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(res)
 }
 
-// TO DO
+// TO DO devolver cobro, enviar sms y email
 func (h *UserReservationHandler) CancelReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
 	err := h.Service.CancelReservation(code)

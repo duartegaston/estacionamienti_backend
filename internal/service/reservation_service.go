@@ -26,38 +26,36 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 }
 
 func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (string, error) {
-	var vehicleTypeID int
-	err := s.Repo.GetVehicleTypeIDByName(req.VehicleType, &vehicleTypeID)
-	if err != nil {
-		return "", fmt.Errorf("vehicle type not found: %w", err)
-	}
-	//TODO en base al payment_method obtener el ID al igual que tipo de vehiculo
-
 	code := fmt.Sprintf("%08X", time.Now().UnixNano()%100000000)
 
 	reservation := &db.Reservation{
-		Code:          code,
-		UserName:      req.UserName,
-		UserEmail:     req.UserEmail,
-		UserPhone:     req.UserPhone,
-		VehicleTypeID: vehicleTypeID,
-		VehiclePlate:  req.VehiclePlate,
-		VehicleModel:  req.VehicleModel,
-		PaymentMethod: req.PaymentMethod, // TODO: guardar el ID
-		Status:        "active",
-		StartTime:     req.StartTime,
-		EndTime:       req.EndTime,
+		Code:            code,
+		UserName:        req.UserName,
+		UserEmail:       req.UserEmail,
+		UserPhone:       req.UserPhone,
+		VehicleTypeID:   req.VehicleTypeID,
+		VehiclePlate:    req.VehiclePlate,
+		VehicleModel:    req.VehicleModel,
+		PaymentMethodID: req.PaymentMethodID,
+		Status:          "active",
+		StartTime:       req.StartTime,
+		EndTime:         req.EndTime,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 
-	err = s.Repo.CreateReservation(reservation)
+	// Generar cobro stripe
+
+	err := s.Repo.CreateReservation(reservation)
 	if err != nil {
+		log.Printf("Error creating reservation in repository: %v", err)
 		return "", err
 	}
 
 	return code, nil
 }
 
-func (s *ReservationService) GetReservationByCode(code, email string) (*db.Reservation, error) {
+func (s *ReservationService) GetReservationByCode(code, email string) (*entities.ReservationResponse, error) {
 	return s.Repo.GetReservationByCode(code, email)
 }
 

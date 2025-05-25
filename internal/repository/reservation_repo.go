@@ -34,7 +34,7 @@ func (r *ReservationRepository) CheckAvailability(req entities.ReservationReques
 		GROUP BY vs.spaces
 	`
 
-	err := r.DB.QueryRow(query, req.StartTime, req.EndTime, req.VehicleType).Scan(&available)
+	err := r.DB.QueryRow(query, req.StartTime, req.EndTime, req.VehicleTypeID).Scan(&available)
 	if err != nil {
 		return 1, fmt.Errorf("Error check availability repository", err)
 	}
@@ -44,8 +44,8 @@ func (r *ReservationRepository) CheckAvailability(req entities.ReservationReques
 func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 	query := `
 		INSERT INTO reservations
-		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method, status, start_time, end_time)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
 		RETURNING id, created_at, updated_at`
 	return r.DB.QueryRow(query,
 		res.Code,
@@ -55,7 +55,7 @@ func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 		res.VehicleTypeID,
 		res.VehiclePlate,
 		res.VehicleModel,
-		res.PaymentMethod,
+		res.PaymentMethodID,
 		res.Status,
 		res.StartTime,
 		res.EndTime,
@@ -66,20 +66,35 @@ func (r *ReservationRepository) GetVehicleTypeIDByName(name string, id *int) err
 	return r.DB.QueryRow(`SELECT id FROM vehicle_types WHERE name = $1`, name).Scan(id)
 }
 
-// TODO: Cambiar por un reservation response para devolver el name de vehiculo y del metodo de pago
-func (r *ReservationRepository) GetReservationByCode(code, email string) (*db.Reservation, error) {
-	var res db.Reservation
-	err := r.DB.QueryRow(`
-		SELECT r.id, r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, r.vehicle_plate, r.vehicle_model,
-		       r.payment_method, r.status, r.start_time, r.end_time, r.created_at, r.updated_at
-		FROM reservations r
-		WHERE r.code = $1 AND r.user_email = $2
-	`, code, email).Scan(
-		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel,
-		&res.PaymentMethod, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
+func (r *ReservationRepository) GetReservationByCode(code, email string) (*entities.ReservationResponse, error) {
+	var res entities.ReservationResponse
+
+	query := `
+        SELECT
+            r.id, r.code, r.user_name, r.user_email, r.user_phone,
+            r.vehicle_type_id, vt.name AS vehicle_type_name,
+            r.vehicle_plate, r.vehicle_model,
+            r.payment_method_id, pm.name AS payment_method_name,
+            r.status, r.start_time, r.end_time, r.created_at, r.updated_at
+        FROM reservations r
+        JOIN vehicle_types vt ON r.vehicle_type_id = vt.id
+        JOIN payment_method pm ON r.payment_method_id = pm.id
+        WHERE r.code = $1 AND r.user_email = $2
+    `
+
+	err := r.DB.QueryRow(query, code, email).Scan(
+		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
+		&res.VehicleTypeID, &res.VehicleTypeName,
+		&res.VehiclePlate, &res.VehicleModel,
+		&res.PaymentMethodID, &res.PaymentMethodName,
+		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
 	)
+
 	if err != nil {
-		return nil, err
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("reservation with code '%s' and email '%s' not found: %w", code, email, err)
+		}
+		return nil, fmt.Errorf("error querying or scanning reservation: %w", err)
 	}
 	return &res, nil
 }
