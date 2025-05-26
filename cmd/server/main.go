@@ -11,6 +11,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/gorilla/handlers"
+
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -68,31 +70,35 @@ func main() {
 	r := mux.NewRouter()
 
 	// Public endpoints
-	r.HandleFunc("/api/availability", userReservationHandler.CheckAvailability).Methods("GET")
-	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST")
-	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET")
-	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE")
-	r.HandleFunc("/api/vehicle-types", userReservationHandler.GetVehicleTypes).Methods("GET")
-	r.HandleFunc("/api/prices", userReservationHandler.GetPrices).Methods("GET")
-	r.HandleFunc("/api/total-price", userReservationHandler.GetTotalPriceForReservation).Methods("GET")
+	r.HandleFunc("/api/availability", userReservationHandler.CheckAvailability).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE", "OPTIONS")
+	r.HandleFunc("/api/vehicle-types", userReservationHandler.GetVehicleTypes).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/prices", userReservationHandler.GetPrices).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/total-price", userReservationHandler.GetTotalPriceForReservation).Methods("GET", "OPTIONS")
 
 	// Admin login
-	r.HandleFunc("/api/login", adminAuthHandler.CreateUserAdmin).Methods("POST")
-	r.HandleFunc("/admin/login", adminAuthHandler.Login).Methods("POST")
+	r.HandleFunc("/api/login", adminAuthHandler.CreateUserAdmin).Methods("POST", "OPTIONS")
+	r.HandleFunc("/admin/login", adminAuthHandler.Login).Methods("POST", "OPTIONS")
 
 	// Admin endpoints (protected)
 	adminRouter := r.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(auth.AdminAuthMiddleware)
-	adminRouter.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET")
-	adminRouter.HandleFunc("/reservations", adminHandler.CreateReservation).Methods("POST")
-	adminRouter.HandleFunc("/reservations/{code}", adminHandler.AdminDeleteReservation).Methods("DELETE")
-	adminRouter.HandleFunc("/vehicle-config", adminHandler.ListVehicleSpaces).Methods("GET")
-	adminRouter.HandleFunc("/vehicle-config/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT")
+	adminRouter.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET", "OPTIONS")
+	adminRouter.HandleFunc("/reservations", adminHandler.CreateReservation).Methods("POST", "OPTIONS")
+	adminRouter.HandleFunc("/reservations/{code}", adminHandler.AdminDeleteReservation).Methods("DELETE", "OPTIONS")
+	adminRouter.HandleFunc("/vehicle-config", adminHandler.ListVehicleSpaces).Methods("GET", "OPTIONS")
+	adminRouter.HandleFunc("/vehicle-config/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT", "OPTIONS")
+
+	allowedOrigins := handlers.AllowedOrigins([]string{os.Getenv("FRONTEND_URL"), "http://localhost:3000"})
+	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With"})
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 	log.Printf("Server running on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	log.Fatal(http.ListenAndServe(":"+port, handlers.CORS(allowedOrigins, allowedMethods, allowedHeaders)(r)))
 }
