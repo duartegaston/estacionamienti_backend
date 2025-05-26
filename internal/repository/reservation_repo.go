@@ -7,9 +7,17 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/lib/pq"
 )
+
+type SlotOccupationInfo struct {
+	SlotStart    time.Time
+	SlotEnd      time.Time
+	TotalSpaces  int
+	BookedSpaces int
+}
 
 type ReservationRepository struct {
 	DB *sql.DB
@@ -17,6 +25,84 @@ type ReservationRepository struct {
 
 func NewReservationRepository(db *sql.DB) *ReservationRepository {
 	return &ReservationRepository{DB: db}
+}
+
+func (r *ReservationRepository) GetHourlyAvailabilityDetails(startTime, endTime time.Time, vehicleTypeID int) ([]SlotOccupationInfo, error) {
+	if !endTime.After(startTime) {
+		return nil, fmt.Errorf("end time must be after start time")
+	}
+
+	query := `
+		WITH requested_slots AS (
+			SELECT
+				gs.slot_hour_start,
+				gs.slot_hour_start + interval '1 hour' AS slot_hour_end
+			FROM generate_series(
+				$1::timestamptz, -- startTime
+				$2::timestamptz - interval '1 hour', -- endTime (para generar slots HASTA justo antes de endTime)
+				interval '1 hour'
+			) AS gs(slot_hour_start)
+		),
+		total_spaces_for_type AS (
+		  SELECT COALESCE(spaces, 0) AS spaces -- COALESCE para manejar si no hay entrada para el tipo
+		  FROM vehicle_spaces
+		  WHERE vehicle_type_id = $3 -- vehicleTypeID
+		)
+		SELECT
+			rs.slot_hour_start,
+			rs.slot_hour_end,
+			(SELECT spaces FROM total_spaces_for_type) AS total_spaces,
+			COUNT(r.id) AS booked_spaces
+		FROM requested_slots rs
+		LEFT JOIN reservations r
+			ON r.vehicle_type_id = $3 -- vehicleTypeID
+			AND r.status = 'active'
+			AND r.start_time < rs.slot_hour_end -- Reserva se superpone con el slot
+			AND r.end_time > rs.slot_hour_start   -- Reserva se superpone con el slot
+		GROUP BY rs.slot_hour_start, rs.slot_hour_end
+		ORDER BY rs.slot_hour_start;
+    `
+
+	rows, err := r.DB.Query(query, startTime, endTime, vehicleTypeID)
+	if err != nil {
+		return nil, fmt.Errorf("error querying hourly availability: %w", err)
+	}
+	defer rows.Close()
+
+	var results []SlotOccupationInfo
+	var hasTotalSpacesEntry bool
+
+	for rows.Next() {
+		var soi SlotOccupationInfo
+		err := rows.Scan(&soi.SlotStart, &soi.SlotEnd, &soi.TotalSpaces, &soi.BookedSpaces)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning hourly availability slot: %w", err)
+		}
+		results = append(results, soi)
+		if !hasTotalSpacesEntry && soi.TotalSpaces > 0 {
+			hasTotalSpacesEntry = true
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error after iterating hourly availability rows: %w", err)
+	}
+
+	// Una verificación más robusta para "tipo de vehículo no configurado":
+	var configuredSpaces sql.NullInt64
+	err = r.DB.QueryRow("SELECT spaces FROM vehicle_spaces WHERE vehicle_type_id = $1", vehicleTypeID).Scan(&configuredSpaces)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []SlotOccupationInfo{}, fmt.Errorf("vehicle type %d not configured in vehicle_spaces", vehicleTypeID)
+		}
+		return nil, fmt.Errorf("error checking vehicle space configuration: %w", err)
+	}
+	if !configuredSpaces.Valid || configuredSpaces.Int64 == 0 {
+		// Tipo configurado pero con 0 espacios, o no configurado.
+		// La query principal manejará esto con COALESCE, pero es bueno saberlo.
+	}
+
+	return results, nil
 }
 
 func (r *ReservationRepository) CheckAvailability(req entities.ReservationRequest) (int, error) {

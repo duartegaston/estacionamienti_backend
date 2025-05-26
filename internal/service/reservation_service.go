@@ -17,12 +17,64 @@ func NewReservationService(repo *repository.ReservationRepository) *ReservationS
 	return &ReservationService{Repo: repo}
 }
 
-func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) (bool, error) {
-	available, err := s.Repo.CheckAvailability(req)
-	if err != nil {
-		return false, err
+func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) (*entities.AvailabilityResponse, error) {
+	if !req.EndTime.After(req.StartTime) {
+		return &entities.AvailabilityResponse{
+			IsOverallAvailable: false,
+			RequestedStartTime: req.StartTime,
+			RequestedEndTime:   req.EndTime,
+			Message:            "La fecha/hora de fin debe ser posterior a la fecha/hora de inicio.",
+		}, nil
 	}
-	return available > 0, nil
+
+	hourlyDetails, err := s.Repo.GetHourlyAvailabilityDetails(req.StartTime, req.EndTime, req.VehicleTypeID)
+	if err != nil {
+		log.Printf("Error from GetHourlyAvailabilityDetails: %v", err)
+		return nil, fmt.Errorf("error interno al verificar disponibilidad: %w", err)
+	}
+
+	response := &entities.AvailabilityResponse{
+		RequestedStartTime: req.StartTime,
+		RequestedEndTime:   req.EndTime,
+		IsOverallAvailable: true, // Asumimos que sí hasta que se demuestre lo contrario
+	}
+
+	if len(hourlyDetails) == 0 {
+		response.IsOverallAvailable = false
+		response.Message = "No se pudo determinar la disponibilidad para el tipo de vehículo o rango solicitado. Verifique la configuración o el rango."
+		return response, nil
+	}
+
+	var firstUnavailableTime *time.Time
+
+	for _, detail := range hourlyDetails {
+		availableInSlot := detail.TotalSpaces - detail.BookedSpaces
+		isSlotAvailable := availableInSlot > 0
+
+		response.SlotDetails = append(response.SlotDetails, entities.TimeSlotAvailability{
+			StartTime:       detail.SlotStart,
+			EndTime:         detail.SlotEnd,
+			IsAvailable:     isSlotAvailable,
+			AvailableSpaces: availableInSlot,
+		})
+
+		if !isSlotAvailable {
+			response.IsOverallAvailable = false
+			if firstUnavailableTime == nil {
+				tempTime := detail.SlotStart
+				firstUnavailableTime = &tempTime
+			}
+		}
+	}
+
+	if response.IsOverallAvailable {
+		response.Message = "El período solicitado está completamente disponible."
+	} else {
+		response.Message = "Algunos horarios dentro del período solicitado no están disponibles. Por favor, revise los detalles."
+		response.FirstUnavailableSlotStart = firstUnavailableTime
+	}
+
+	return response, nil
 }
 
 func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (string, error) {
