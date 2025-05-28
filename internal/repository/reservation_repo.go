@@ -51,14 +51,14 @@ func (r *ReservationRepository) GetHourlyAvailabilityDetails(startTime, endTime 
 		SELECT
 			rs.slot_hour_start,
 			rs.slot_hour_end,
-			(SELECT spaces FROM total_spaces_for_type) AS total_spaces,
+			COALESCE((SELECT spaces FROM total_spaces_for_type), 0) AS total_spaces,
 			COUNT(r.id) AS booked_spaces
 		FROM requested_slots rs
 		LEFT JOIN reservations r
-			ON r.vehicle_type_id = $3 -- vehicleTypeID
+			ON r.vehicle_type_id = $3
 			AND r.status = 'active'
-			AND r.start_time < rs.slot_hour_end -- Reserva se superpone con el slot
-			AND r.end_time > rs.slot_hour_start   -- Reserva se superpone con el slot
+			AND r.start_time < rs.slot_hour_end
+			AND r.end_time > rs.slot_hour_start
 		GROUP BY rs.slot_hour_start, rs.slot_hour_end
 		ORDER BY rs.slot_hour_start;
     `
