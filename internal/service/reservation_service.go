@@ -104,6 +104,8 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		return "", err
 	}
 
+	//_ = s.sendReservationEmail(*reservation)
+
 	return code, nil
 }
 
@@ -162,5 +164,39 @@ func (s *ReservationService) UpdateFinishedReservations() error {
 	}
 
 	log.Printf("Cron Job: Successfully updated %d reservations to 'finished'.", len(reservationIDs))
+	return nil
+}
+
+func (s *ReservationService) sendReservationEmail(reservation db.Reservation) error {
+	userFullName := reservation.UserName
+	reservationCode := reservation.Code
+	startTimeFormatted := reservation.StartTime.Format("02 Jan 2006 15:04 MST")
+	endTimeFormatted := reservation.EndTime.Format("02 Jan 2006 15:04 MST")
+
+	emailSubject := fmt.Sprintf("Confirmación de tu Reserva en GreenPark - Código: %s", reservationCode)
+
+	plainTextBody := fmt.Sprintf(`Hola %s, Tu reserva en GreenPark ha sido confirmada. Código de Reserva: %s 
+	Vehículo: %s (%s) Entrada: %s Salida: %s Gracias por elegir GreenPark.`, userFullName, reservationCode, reservation.VehicleModel, reservation.VehiclePlate, startTimeFormatted, endTimeFormatted)
+
+	// Para el HTML, puedes usar templates de Go (html/template) o simplemente strings.
+	htmlBody := fmt.Sprintf(`
+	<html>
+	<body>
+	  <h2>Hola %s,</h2>
+	  <p>Tu reserva en GreenPark ha sido confirmada.</p>
+	  <p><strong>Código de Reserva:</strong> %s</p>
+	  <p><strong>Vehículo:</strong> %s (%s)</p>
+	  <p><strong>Entrada:</strong> %s</p>
+	  <p><strong>Salida:</strong> %s</p>
+	  <p>Gracias por elegir GreenPark.</p>
+	</body>
+	</html>`, userFullName, reservationCode, reservation.VehicleModel, reservation.VehiclePlate, startTimeFormatted, endTimeFormatted)
+
+	go func() {
+		errEmail := SendEmailWithSendGrid(reservation.UserEmail, userFullName, emailSubject, plainTextBody, htmlBody)
+		if errEmail != nil {
+			log.Printf("ALERTA (asíncrono): Falló envío de correo para reserva %s: %v", reservationCode, errEmail)
+		}
+	}()
 	return nil
 }
