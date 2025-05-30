@@ -8,6 +8,7 @@ import (
 	openapi "github.com/twilio/twilio-go/rest/api/v2010"
 	"log"
 	"os"
+	"strings"
 )
 
 func SendEmailWithSendGrid(toEmailAddress, toName, subject, plainTextContent, htmlContent string) error {
@@ -53,24 +54,42 @@ func SendEmailWithSendGrid(toEmailAddress, toName, subject, plainTextContent, ht
 	return fmt.Errorf("SendGrid devolvió un estado no exitoso %d: %s", response.StatusCode, response.Body)
 }
 
-func SendSMS(to, message string) error {
+func SendSMS(toNumber string, messageBody string) error {
 	accountSid := os.Getenv("TWILIO_ACCOUNT_SID")
 	authToken := os.Getenv("TWILIO_AUTH_TOKEN")
-	from := os.Getenv("TWILIO_FROM_NUMBER")
+	fromNumber := os.Getenv("TWILIO_FROM_NUMBER")
+
+	if accountSid == "" || authToken == "" || fromNumber == "" {
+		log.Println("ADVERTENCIA: Las credenciales de Twilio (SID, Token o From Number) no están configuradas. El SMS no se enviará.")
+		return fmt.Errorf("credenciales de Twilio no configuradas completamente")
+	}
+
+	if !strings.HasPrefix(toNumber, "+") {
+		log.Printf("ADVERTENCIA: El número de destino '%s' no está en formato E.164 (debe empezar con '+'). El SMS podría fallar.", toNumber)
+	}
 
 	client := twilio.NewRestClientWithParams(twilio.ClientParams{
-		Username: accountSid,
-		Password: authToken,
+		Username:   accountSid,
+		Password:   authToken,
+		AccountSid: accountSid,
 	})
 
 	params := &openapi.CreateMessageParams{}
-	params.SetTo(to)
-	params.SetFrom(from)
-	params.SetBody(message)
+	params.SetTo(toNumber)
+	params.SetFrom(fromNumber)
+	params.SetBody(messageBody)
 
-	_, err := client.Api.CreateMessage(params)
+	resp, err := client.Api.CreateMessage(params)
 	if err != nil {
-		return fmt.Errorf("failed to send SMS: %w", err)
+		log.Printf("Error al enviar SMS a %s vía Twilio: %v", toNumber, err)
+		return fmt.Errorf("falló el envío del SMS: %w", err)
 	}
+
+	if resp != nil && resp.Sid != nil {
+		log.Printf("SMS enviado exitosamente a %s. SID del Mensaje: %s", toNumber, *resp.Sid)
+	} else {
+		log.Printf("SMS enviado a %s, pero no se recibió SID en la respuesta (esto es inusual si no hubo error).", toNumber)
+	}
+
 	return nil
 }

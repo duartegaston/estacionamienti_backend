@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmación de Reserva GreenPark</title>
+    <style>
+        /* Estilos generales - muchos clientes de correo los ignoran o modifican, por eso se usan estilos inline */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f7;
+            color: #333333;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            padding: 25px;
+            border: 1px solid #dddddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eeeeee;
+        }
+        .header h1 {
+            color: #4CAF50; /* Un verde GreenPark */
+            margin: 0;
+        }
+        .content h2 {
+            color: #333333;
+            font-size: 1.3em;
+        }
+        .content p {
+            line-height: 1.6;
+            font-size: 1em;
+            margin: 10px 0;
+        }
+        .content strong {
+            color: #333333;
+        }
+        .reservation-details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .reservation-details p {
+            margin: 8px 0;
+            font-size: 0.95em;
+        }
+        .footer {
+            text-align: center;
+            font-size: 0.9em;
+            color: #777777;
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #eeeeee;
+        }
+        /* Si tuvieras un logo:
+        .logo {
+          max-width: 150px;
+          margin-bottom: 10px;
+        }
+        */
+    </style>
+</head>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f7; color: #333333;">
+<div class="email-container" style="max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 25px; border: 1px solid #dddddd; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+    <div class="header" style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #eeeeee;">
+        <h1 style="color: #4CAF50; margin: 0;">GreenPark</h1>
+    </div>
+
+    <div class="content">
+        <h2 style="color: #333333; font-size: 1.3em;">Hola {{.UserName}},</h2>
+        <p style="line-height: 1.6; font-size: 1em; margin: 10px 0;">¡Tu reserva en <strong>GreenPark</strong> ha sido confirmada con éxito!</p>
+
+        <div class="reservation-details" style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 8px 0; font-size: 0.95em;"><strong>Código de Reserva:</strong> <span style="font-weight: bold; color: #4CAF50;">{{.ReservationCode}}</span></p>
+            <p style="margin: 8px 0; font-size: 0.95em;"><strong>Vehículo:</strong> {{.VehicleModel}} (Matrícula: {{.VehiclePlate}})</p>
+            <p style="margin: 8px 0; font-size: 0.95em;"><strong>Fecha y Hora de Entrada:</strong> {{.StartTimeFormatted}}</p>
+            <p style="margin: 8px 0; font-size: 0.95em;"><strong>Fecha y Hora de Salida:</strong> {{.EndTimeFormatted}}</p>
+        </div>
+
+        <p style="line-height: 1.6; font-size: 1em; margin: 10px 0;">Te esperamos. Gracias por elegir GreenPark.</p>
+    </div>
+
+    <div class="footer" style="text-align: center; font-size: 0.9em; color: #777777; margin-top: 25px; padding-top: 15px; border-top: 1px solid #eeeeee;">
+        <p>Si tienes alguna pregunta sobre tu reserva, no dudes en contactarnos.</p>
+        <p>Email: gree.parking.ita@gmail.com</p>
+        <p>Cel: +34 123 456 789</p>
+        <p>&copy; {{.CurrentYear}} GreenPark. Todos los derechos reservados.</p>
+    </div>
+</div>
+</body>
+</html>
