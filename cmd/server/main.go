@@ -6,6 +6,7 @@ import (
 	"estacionamienti/internal/auth"
 	"estacionamienti/internal/repository"
 	"estacionamienti/internal/service"
+	"github.com/stripe/stripe-go/v76"
 	"log"
 	"net/http"
 	"os"
@@ -18,6 +19,14 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/robfig/cron/v3"
 )
+
+func initStripe() {
+	stripeSecretKey := os.Getenv("STRIPE_SECRET_KEY")
+	if stripeSecretKey == "" {
+		log.Fatal("STRIPE_SECRET_KEY no está configurada.")
+	}
+	stripe.Key = stripeSecretKey
+}
 
 func main() {
 	if os.Getenv("RAILWAY_ENVIRONMENT") == "" {
@@ -37,6 +46,8 @@ func main() {
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Failed to connect to DB: %v", err)
 	}
+
+	initStripe()
 
 	// Repositories
 	reservationRepo := repository.NewReservationRepository(db)
