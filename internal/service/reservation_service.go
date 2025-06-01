@@ -44,7 +44,6 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 
 	if len(hourlyDetails) == 0 {
 		response.IsOverallAvailable = false
-		response.Message = "No se pudo determinar la disponibilidad para el tipo de vehículo o rango solicitado. Verifique la configuración o el rango."
 		return response, nil
 	}
 
