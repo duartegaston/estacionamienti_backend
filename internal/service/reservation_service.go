@@ -26,7 +26,6 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 			IsOverallAvailable: false,
 			RequestedStartTime: req.StartTime,
 			RequestedEndTime:   req.EndTime,
-			Message:            "La fecha/hora de fin debe ser posterior a la fecha/hora de inicio.",
 		}, nil
 	}
 
@@ -67,13 +66,6 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 				firstUnavailableTime = &tempTime
 			}
 		}
-	}
-
-	if response.IsOverallAvailable {
-		response.Message = "El período solicitado está completamente disponible."
-	} else {
-		response.Message = "Algunos horarios dentro del período solicitado no están disponibles. Por favor, revise los detalles."
-		response.FirstUnavailableSlotStart = firstUnavailableTime
 	}
 
 	return response, nil
