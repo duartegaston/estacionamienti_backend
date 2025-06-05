@@ -157,7 +157,7 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
 
 	query := `
         SELECT
-            r.id, r.code, r.user_name, r.user_email, r.user_phone,
+            r.code, r.user_name, r.user_email, r.user_phone,
             r.vehicle_type_id, vt.name AS vehicle_type_name,
             r.vehicle_plate, r.vehicle_model,
             r.payment_method_id, pm.name AS payment_method_name,
@@ -169,7 +169,7 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
     `
 
 	err := r.DB.QueryRow(query, code, email).Scan(
-		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
+		&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
 		&res.VehicleTypeID, &res.VehicleTypeName,
 		&res.VehiclePlate, &res.VehicleModel,
 		&res.PaymentMethodID, &res.PaymentMethodName,

@@ -71,7 +71,7 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 	return response, nil
 }
 
-func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (string, error) {
+func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (reservationResponse *entities.ReservationResponse, err error) {
 	code := fmt.Sprintf("%08X", time.Now().UnixNano()%100000000)
 
 	reservation := &db.Reservation{
@@ -90,18 +90,23 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		UpdatedAt:       time.Now(),
 	}
 
-	// Generar cobro stripe
-
-	err := s.Repo.CreateReservation(reservation)
+	err = s.Repo.CreateReservation(reservation)
 	if err != nil {
 		log.Printf("Error creating reservation in repository: %v", err)
-		return "", err
+		return reservationResponse, err
 	}
 
+	// Generar cobro stripe
 	//sendReservationSMS(*reservation)
 	//sendReservationEmail(*reservation)
 
-	return code, nil
+	reservationResponse, err = s.Repo.GetReservationByCode(code, req.UserEmail)
+	if err != nil {
+		log.Printf("Error from GetReservationByCode: %v", err)
+		return reservationResponse, fmt.Errorf("error interno al crear la reserva: %w", err)
+	}
+
+	return reservationResponse, nil
 }
 
 func (s *ReservationService) GetReservationByCode(code, email string) (*entities.ReservationResponse, error) {

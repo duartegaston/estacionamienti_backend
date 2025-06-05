@@ -17,7 +17,6 @@ type ReservationRequest struct {
 }
 
 type ReservationResponse struct {
-	ID                int       `json:"id"`
 	Code              string    `json:"code"`
 	UserName          string    `json:"user_name"`
 	UserEmail         string    `json:"user_email"`

@@ -92,21 +92,21 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 	}
 }
 
-// TO DO hacer cobro, enviar sms y email
+// TO DO hacer cobro
 func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
 	var req entities.ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	code, err := h.Service.CreateReservation(&req)
+	reservation, err := h.Service.CreateReservation(&req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"reservation_code": code,
-		"message":          "Reservation confirmed.",
+		"reservation": reservation,
+		"message":     "Reservation confirmed.",
 	})
 }
 
