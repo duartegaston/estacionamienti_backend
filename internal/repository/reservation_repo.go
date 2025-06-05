@@ -397,3 +397,15 @@ func (r *ReservationRepository) UpdateReservationStripeInfo(reservationID int, s
 	}
 	return nil
 }
+
+func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTimeID int) (int, error) {
+	var price int
+	err := r.DB.QueryRow(`SELECT price FROM vehicle_prices WHERE vehicle_type_id = $1 AND reservation_time_id = $2`, vehicleTypeID, reservationTimeID).Scan(&price)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, fmt.Errorf("no price configured for vehicle_type_id %d and reservation_time_id %d", vehicleTypeID, reservationTimeID)
+		}
+		return 0, err
+	}
+	return price, nil
+}

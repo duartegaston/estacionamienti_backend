@@ -147,9 +147,42 @@ func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(res)
 }
 
-// TO DO
 func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWriter, r *http.Request) {
-	return
+	vehicleTypeIDStr := r.URL.Query().Get("vehicle_type_id")
+	startTimeStr := r.URL.Query().Get("start_time")
+	endTimeStr := r.URL.Query().Get("end_time")
+
+	if vehicleTypeIDStr == "" || startTimeStr == "" || endTimeStr == "" {
+		http.Error(w, "Missing required query params", http.StatusBadRequest)
+		return
+	}
+
+	vehicleTypeID, err := strconv.Atoi(vehicleTypeIDStr)
+	if err != nil {
+		http.Error(w, "Invalid vehicle_type_id", http.StatusBadRequest)
+		return
+	}
+
+	startTime, err := time.Parse(time.RFC3339, startTimeStr)
+	if err != nil {
+		http.Error(w, "Invalid start_time format. Use RFC3339", http.StatusBadRequest)
+		return
+	}
+	endTime, err := time.Parse(time.RFC3339, endTimeStr)
+	if err != nil {
+		http.Error(w, "Invalid end_time format. Use RFC3339", http.StatusBadRequest)
+		return
+	}
+
+	totalPrice, err := h.Service.GetTotalPriceForReservation(vehicleTypeID, startTime, endTime)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]int{"total_price": totalPrice}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.Request) {

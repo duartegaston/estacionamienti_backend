@@ -162,6 +162,54 @@ func (s *ReservationService) UpdateFinishedReservations() error {
 	return nil
 }
 
+func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, startTime, endTime time.Time) (int, error) {
+	if !endTime.After(startTime) {
+		return 0, fmt.Errorf("end_time must be after start_time")
+	}
+	unit, count, reservationTimeID := getBestUnitAndCount(startTime, endTime)
+	pricePerUnit, err := s.Repo.GetPriceForUnit(vehicleTypeID, reservationTimeID)
+	if err != nil {
+		return 0, fmt.Errorf("could not get price per %s: %w", unit, err)
+	}
+	return pricePerUnit * count, nil
+}
+
+func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, reservationTimeID int) {
+	d := endTime.Sub(startTime)
+	if d.Hours() < 24 {
+		// Less than 1 day, use hours
+		count = int(d.Hours())
+		if d.Minutes() > float64(count*60) {
+			count++
+		}
+		if count == 0 {
+			count = 1
+		}
+		return "hour", count, 1
+	} else if d.Hours() < 24*7 {
+		// Less than 1 week, use days
+		count = int(d.Hours() / 24)
+		if d.Hours() > float64(count*24) {
+			count++
+		}
+		return "day", count, 2
+	} else if d.Hours() < 24*30 {
+		// Less than 1 month, use weeks
+		count = int(d.Hours() / (24 * 7))
+		if d.Hours() > float64(count*24*7) {
+			count++
+		}
+		return "week", count, 3
+	} else {
+		// 1 month or more, use months
+		count = int(d.Hours() / (24 * 30))
+		if d.Hours() > float64(count*24*30) {
+			count++
+		}
+		return "month", count, 4
+	}
+}
+
 func sendReservationEmail(reservation db.Reservation) {
 	emailData := entities.ReservationEmailData{
 		UserName:           reservation.UserName,
