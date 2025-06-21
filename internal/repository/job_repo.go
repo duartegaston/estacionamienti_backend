@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/lib/pq"
 	"log"
+	"time"
 )
 
 type JobRepository struct {
@@ -17,8 +18,9 @@ func NewJobRepository(db *sql.DB) *JobRepository {
 
 // GetActiveReservationIDsPastEndTime busca IDs de reservas activas cuya fecha de fin ya pasó.
 func (r *JobRepository) GetActiveReservationIDsPastEndTime() ([]int, error) {
-	query := `SELECT id FROM reservations WHERE status = 'active' AND end_time < NOW()`
-	rows, err := r.DB.Query(query)
+	now := time.Now().UTC()
+	query := `SELECT id FROM reservations WHERE status = 'active' AND end_time < $1`
+	rows, err := r.DB.Query(query, now)
 	if err != nil {
 		return nil, fmt.Errorf("error querying active reservations past end time: %w", err)
 	}
@@ -44,8 +46,9 @@ func (r *JobRepository) UpdateReservationStatuses(ids []int, newStatus string) e
 	if len(ids) == 0 {
 		return nil // No hay nada que actualizar
 	}
-	query := `UPDATE reservations SET status = $1, updated_at = NOW() WHERE id = ANY($2)`
-	result, err := r.DB.Exec(query, newStatus, pq.Array(ids))
+	now := time.Now().UTC()
+	query := `UPDATE reservations SET status = $1, updated_at = $2 WHERE id = ANY($3)`
+	result, err := r.DB.Exec(query, newStatus, now, pq.Array(ids))
 	if err != nil {
 		return fmt.Errorf("error updating reservation statuses: %w", err)
 	}

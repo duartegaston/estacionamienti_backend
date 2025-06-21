@@ -51,10 +51,10 @@ CREATE TABLE reservations (
     vehicle_plate VARCHAR(20) NOT NULL,
     vehicle_model VARCHAR(50) NOT NULL,
     status VARCHAR(20) DEFAULT 'active',
-    start_time TIMESTAMP NOT NULL,
-    end_time TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 INSERT INTO vehicle_types (name) VALUES ('car'), ('motorcycle'), ('suv');

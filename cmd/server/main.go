@@ -70,7 +70,7 @@ func main() {
 	//   "@hourly": Ejecutar al inicio de cada hora
 	//   "*/1 * * * *"               : Ejecutar cada minuto (para pruebas, puede ser muy frecuente para producción)
 	c := cron.New(cron.WithLocation(time.UTC))
-	_, err = c.AddFunc("@hourly", func() {
+	_, err = c.AddFunc("*/1 * * * *", func() {
 		log.Println("Executing scheduled task: Update Finished Reservations")
 		if err := jobSvc.UpdateFinishedReservations(); err != nil {
 			log.Printf("Error during scheduled task: UpdateFinishedReservations: %v", err)

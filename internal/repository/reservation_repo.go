@@ -163,7 +163,7 @@ func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 	query := `
 		INSERT INTO reservations
 		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id, created_at, updated_at`
 	return r.DB.QueryRow(query,
 		res.Code,
@@ -177,6 +177,8 @@ func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 		res.Status,
 		res.StartTime,
 		res.EndTime,
+		res.CreatedAt,
+		res.UpdatedAt,
 	).Scan(&res.ID, &res.CreatedAt, &res.UpdatedAt)
 }
 
@@ -214,7 +216,7 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
 }
 
 func (r *ReservationRepository) CancelReservation(code string) (string, error) {
-	query := `UPDATE reservations SET status = 'canceled', updated_at = NOW() WHERE code = $1 RETURNING status`
+	query := `UPDATE reservations SET status = 'canceled', updated_at = time.Now().UTC() WHERE code = $1 RETURNING status`
 	var status string
 	err := r.DB.QueryRow(query, code).Scan(&status)
 	if err != nil {
