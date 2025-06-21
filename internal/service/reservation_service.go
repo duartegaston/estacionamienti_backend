@@ -133,6 +133,7 @@ func (s *ReservationService) GetReservationByCode(code, email string) (*entities
 func (s *ReservationService) CancelReservation(code string) error {
 	// Cancelar cobro stripe
 	_, err := s.Repo.CancelReservation(code)
+	// Enviar main y SMS
 	return err
 }
 

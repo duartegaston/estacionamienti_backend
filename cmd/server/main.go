@@ -69,7 +69,7 @@ func main() {
 	// Cron scheduler
 	//   "@hourly": Ejecutar al inicio de cada hora
 	//   "*/1 * * * *"               : Ejecutar cada minuto (para pruebas, puede ser muy frecuente para producción)
-	c := cron.New(cron.WithLocation(time.Local))
+	c := cron.New(cron.WithLocation(time.UTC))
 	_, err = c.AddFunc("@hourly", func() {
 		log.Println("Executing scheduled task: Update Finished Reservations")
 		if err := jobSvc.UpdateFinishedReservations(); err != nil {
