@@ -2,14 +2,12 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"estacionamienti/internal/db"
 	"estacionamienti/internal/entities"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 type SlotOccupationInfo struct {
@@ -25,6 +23,54 @@ type ReservationRepository struct {
 
 func NewReservationRepository(db *sql.DB) *ReservationRepository {
 	return &ReservationRepository{DB: db}
+}
+
+func (r *ReservationRepository) GetPrices() ([]entities.PriceResponse, error) {
+	query := `
+	SELECT vt.name as vehicle_type, rt.name as reservation_time, vp.price
+	FROM vehicle_prices vp
+	JOIN vehicle_types vt ON vp.vehicle_type_id = vt.id
+	JOIN reservation_times rt ON vp.reservation_time_id = rt.id
+	ORDER BY vt.name, rt.name
+	`
+
+	rows, err := r.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var prices []entities.PriceResponse
+	for rows.Next() {
+		var p entities.PriceResponse
+		if err := rows.Scan(&p.VehicleType, &p.ReservationTime, &p.Price); err != nil {
+			return nil, err
+		}
+		prices = append(prices, p)
+	}
+
+	return prices, nil
+}
+
+func (r *ReservationRepository) GetVehicleTypes() ([]db.VehicleType, error) {
+	query := `SELECT id, name FROM vehicle_types ORDER BY name`
+
+	rows, err := r.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var types []db.VehicleType
+	for rows.Next() {
+		var vt db.VehicleType
+		if err := rows.Scan(&vt.ID, &vt.Name); err != nil {
+			return nil, err
+		}
+		types = append(types, vt)
+	}
+
+	return types, nil
 }
 
 func (r *ReservationRepository) GetHourlyAvailabilityDetails(startTime, endTime time.Time, vehicleTypeID int) ([]SlotOccupationInfo, error) {
@@ -92,39 +138,25 @@ func (r *ReservationRepository) GetHourlyAvailabilityDetails(startTime, endTime 
 	var configuredSpaces sql.NullInt64
 	err = r.DB.QueryRow("SELECT spaces FROM vehicle_spaces WHERE vehicle_type_id = $1", vehicleTypeID).Scan(&configuredSpaces)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return []SlotOccupationInfo{}, fmt.Errorf("vehicle type %d not configured in vehicle_spaces", vehicleTypeID)
 		}
 		return nil, fmt.Errorf("error checking vehicle space configuration: %w", err)
-	}
-	if !configuredSpaces.Valid || configuredSpaces.Int64 == 0 {
-		// Tipo configurado pero con 0 espacios, o no configurado.
-		// La query principal manejará esto con COALESCE, pero es bueno saberlo.
 	}
 
 	return results, nil
 }
 
-func (r *ReservationRepository) CheckAvailability(req entities.ReservationRequest) (int, error) {
-	var available int
-	query := `
-		SELECT 
-			vs.spaces - COUNT(r.id) AS available_spaces
-		FROM vehicle_spaces vs
-		JOIN vehicle_types vt ON vt.id = vs.vehicle_type_id
-		LEFT JOIN reservations r 
-			ON r.vehicle_type_id = vt.id
-			AND r.status = 'active'
-			AND r.start_time < $2 AND r.end_time > $1
-		WHERE vt.name = $3
-		GROUP BY vs.spaces
-	`
-
-	err := r.DB.QueryRow(query, req.StartTime, req.EndTime, req.VehicleTypeID).Scan(&available)
+func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTimeID int) (int, error) {
+	var price int
+	err := r.DB.QueryRow(`SELECT price FROM vehicle_prices WHERE vehicle_type_id = $1 AND reservation_time_id = $2`, vehicleTypeID, reservationTimeID).Scan(&price)
 	if err != nil {
-		return 1, fmt.Errorf("Error check availability repository", err)
+		if err == sql.ErrNoRows {
+			return 0, fmt.Errorf("no price configured for vehicle_type_id %d and reservation_time_id %d", vehicleTypeID, reservationTimeID)
+		}
+		return 0, err
 	}
-	return available, err
+	return price, nil
 }
 
 func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
@@ -146,10 +178,6 @@ func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 		res.StartTime,
 		res.EndTime,
 	).Scan(&res.ID, &res.CreatedAt, &res.UpdatedAt)
-}
-
-func (r *ReservationRepository) GetVehicleTypeIDByName(name string, id *int) error {
-	return r.DB.QueryRow(`SELECT id FROM vehicle_types WHERE name = $1`, name).Scan(id)
 }
 
 func (r *ReservationRepository) GetReservationByCode(code, email string) (*entities.ReservationResponse, error) {
@@ -186,226 +214,12 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
 }
 
 func (r *ReservationRepository) CancelReservation(code string) (string, error) {
-	query := `UPDATE reservations SET status = 'cancelled', updated_at = NOW() WHERE code = $1 RETURNING status`
+	query := `UPDATE reservations SET status = 'canceled', updated_at = NOW() WHERE code = $1 RETURNING status`
 	var status string
 	err := r.DB.QueryRow(query, code).Scan(&status)
 	if err != nil {
+		log.Printf("Error canceling reservation: %v", err)
 		return "", err
 	}
 	return status, nil
-}
-
-func (r *ReservationRepository) GetPrices() ([]entities.PriceResponse, error) {
-	query := `
-	SELECT vt.name as vehicle_type, rt.name as reservation_time, vp.price
-	FROM vehicle_prices vp
-	JOIN vehicle_types vt ON vp.vehicle_type_id = vt.id
-	JOIN reservation_times rt ON vp.reservation_time_id = rt.id
-	ORDER BY vt.name, rt.name
-	`
-
-	rows, err := r.DB.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var prices []entities.PriceResponse
-	for rows.Next() {
-		var p entities.PriceResponse
-		if err := rows.Scan(&p.VehicleType, &p.ReservationTime, &p.Price); err != nil {
-			return nil, err
-		}
-		prices = append(prices, p)
-	}
-
-	return prices, nil
-}
-
-func (r *ReservationRepository) GetVehicleTypes() ([]db.VehicleType, error) {
-	query := `SELECT id, name FROM vehicle_types ORDER BY name`
-
-	rows, err := r.DB.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var types []db.VehicleType
-	for rows.Next() {
-		var vt db.VehicleType
-		if err := rows.Scan(&vt.ID, &vt.Name); err != nil {
-			return nil, err
-		}
-		types = append(types, vt)
-	}
-
-	return types, nil
-}
-
-// ADMIN FUNCTIONS
-
-func (r *ReservationRepository) ListReservations(date, vehicleType string) ([]db.Reservation, error) {
-	query := `
-	SELECT
-		r.id, r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, r.vehicle_plate, r.vehicle_model,
-		r.status, r.start_time, r.end_time, r.created_at, r.updated_at
-	FROM reservations r
-	JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
-	WHERE 1=1`
-	args := []interface{}{}
-	idx := 1
-
-	if date != "" {
-		query += " AND DATE(r.start_time) = $" + strconv.Itoa(idx)
-		args = append(args, date)
-		idx++
-	}
-	if vehicleType != "" {
-		query += " AND vt.name = $" + strconv.Itoa(idx)
-		args = append(args, vehicleType)
-		idx++
-	}
-	query += " ORDER BY r.start_time DESC"
-
-	rows, err := r.DB.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var reservations []db.Reservation
-	for rows.Next() {
-		var res db.Reservation
-		err := rows.Scan(
-			&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel,
-			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
-		)
-		if err == nil {
-			reservations = append(reservations, res)
-		}
-	}
-	return reservations, nil
-}
-
-func (r *ReservationRepository) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
-	_, err := r.DB.Exec(`
-		UPDATE vehicle_spaces vs
-		SET total_spaces = $1,
-			available_spaces = $2
-		FROM vehicle_types vt
-		WHERE vs.vehicle_type_id = vt.id AND vt.name = $3
-	`, totalSpaces, availableSpaces, vehicleType)
-	return err
-}
-
-func (r *ReservationRepository) ListVehicleSpaces() ([]db.VehicleSpace, error) {
-	rows, err := r.DB.Query(`
-		SELECT vt.name, vs.total_spaces, vs.available_spaces
-		FROM vehicle_spaces vs
-		JOIN vehicle_types vt ON vs.vehicle_type_id = vt.id
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var spaces []db.VehicleSpace
-	for rows.Next() {
-		var vs db.VehicleSpace
-		err := rows.Scan(&vs.VehicleType, &vs.TotalSpaces, &vs.AvailableSpaces)
-		if err != nil {
-			continue
-		}
-		spaces = append(spaces, vs)
-	}
-	return spaces, nil
-}
-
-// JOBS
-
-// GetActiveReservationIDsPastEndTime busca IDs de reservas activas cuya fecha de fin ya pasó.
-func (r *ReservationRepository) GetActiveReservationIDsPastEndTime() ([]int, error) {
-	query := `SELECT id FROM reservations WHERE status = 'active' AND end_time < NOW()`
-	rows, err := r.DB.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("error querying active reservations past end time: %w", err)
-	}
-	defer rows.Close()
-
-	var ids []int
-	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("error scanning reservation ID: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error after iterating rows: %w", err)
-	}
-	return ids, nil
-}
-
-// UpdateReservationStatusesToFinished actualiza el estado de una lista de reservas a 'Finalizada'.
-// También actualiza el campo updated_at.
-func (r *ReservationRepository) UpdateReservationStatuses(ids []int, newStatus string) error {
-	if len(ids) == 0 {
-		return nil // No hay nada que actualizar
-	}
-	query := `UPDATE reservations SET status = $1, updated_at = NOW() WHERE id = ANY($2)`
-	result, err := r.DB.Exec(query, newStatus, pq.Array(ids))
-	if err != nil {
-		return fmt.Errorf("error updating reservation statuses: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		log.Printf("Could not get rows affected: %v", err)
-	} else {
-		log.Printf("Updated status for %d reservations to '%s'", rowsAffected, newStatus)
-	}
-	return nil
-}
-
-func (r *ReservationRepository) UpdateReservationStripeInfo(reservationID int, stripeCustomerID, stripePaymentIntentID,
-	stripeSetupIntentID, stripeUsedPMID, newStatus, newPaymentStatus string) error {
-	query := `
-		UPDATE reservations
-		SET
-			stripe_customer_id = $2,
-			stripe_payment_intent_id = $3,
-			stripe_setup_intent_id = $4,
-			stripe_payment_method_id = $5,
-			status = $6,
-			payment_status = $7,
-			updated_at = $8
-		WHERE id = $1`
-
-	_, err := r.DB.Exec(query,
-		reservationID,
-		stripeCustomerID,
-		stripePaymentIntentID,
-		stripeSetupIntentID,
-		stripeUsedPMID,
-		newStatus,
-		newPaymentStatus,
-		time.Now(),
-	)
-	if err != nil {
-		return fmt.Errorf("error actualizando reserva %d con info de Stripe: %w", reservationID, err)
-	}
-	return nil
-}
-
-func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTimeID int) (int, error) {
-	var price int
-	err := r.DB.QueryRow(`SELECT price FROM vehicle_prices WHERE vehicle_type_id = $1 AND reservation_time_id = $2`, vehicleTypeID, reservationTimeID).Scan(&price)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return 0, fmt.Errorf("no price configured for vehicle_type_id %d and reservation_time_id %d", vehicleTypeID, reservationTimeID)
-		}
-		return 0, err
-	}
-	return price, nil
 }

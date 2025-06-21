@@ -51,24 +51,28 @@ func main() {
 
 	// Repositories
 	reservationRepo := repository.NewReservationRepository(db)
-	adminRepo := repository.NewAdminAuthRepository(db)
+	jobRepo := repository.NewJobRepository(db)
+	adminRepo := repository.NewAdminRepository(db)
+	adminAuthRepo := repository.NewAdminAuthRepository(db)
 
 	// Services
 	reservationSvc := service.NewReservationService(reservationRepo)
-	adminSvc := service.NewAdminAuthService(adminRepo)
+	jobSvc := service.NewJobService(jobRepo)
+	adminSvc := service.NewAdminService(adminRepo)
+	adminAuthSvc := service.NewAdminAuthService(adminAuthRepo)
 
 	// Handlers
 	userReservationHandler := api.NewUserReservationHandler(reservationSvc)
-	adminHandler := api.NewAdminHandler(reservationSvc)
-	adminAuthHandler := api.NewAdminAuthHandler(adminSvc)
+	adminHandler := api.NewAdminHandler(adminSvc)
+	adminAuthHandler := api.NewAdminAuthHandler(adminAuthSvc)
 
 	// Cron scheduler
-	//   "@hourly"                   : Ejecutar al inicio de cada hora
+	//   "@hourly": Ejecutar al inicio de cada hora
 	//   "*/1 * * * *"               : Ejecutar cada minuto (para pruebas, puede ser muy frecuente para producción)
 	c := cron.New(cron.WithLocation(time.Local))
 	_, err = c.AddFunc("@hourly", func() {
 		log.Println("Executing scheduled task: Update Finished Reservations")
-		if err := reservationSvc.UpdateFinishedReservations(); err != nil {
+		if err := jobSvc.UpdateFinishedReservations(); err != nil {
 			log.Printf("Error during scheduled task: UpdateFinishedReservations: %v", err)
 		}
 	})
@@ -81,13 +85,13 @@ func main() {
 	r := mux.NewRouter()
 
 	// Public endpoints
+	r.HandleFunc("/api/prices", userReservationHandler.GetPrices).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/vehicle-types", userReservationHandler.GetVehicleTypes).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/availability", userReservationHandler.CheckAvailability).Methods("GET", "OPTIONS")
-	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST", "OPTIONS")
+	r.HandleFunc("/api/total-price", userReservationHandler.GetTotalPriceForReservation).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST", "OPTIONS") //TODO: hacer cobro
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE", "OPTIONS")
-	r.HandleFunc("/api/vehicle-types", userReservationHandler.GetVehicleTypes).Methods("GET", "OPTIONS")
-	r.HandleFunc("/api/prices", userReservationHandler.GetPrices).Methods("GET", "OPTIONS")
-	r.HandleFunc("/api/total-price", userReservationHandler.GetTotalPriceForReservation).Methods("GET", "OPTIONS")
 
 	// Admin login
 	r.HandleFunc("/api/login", adminAuthHandler.CreateUserAdmin).Methods("POST", "OPTIONS")

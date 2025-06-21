@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+const (
+	statusActive = "active"
+)
+
 type ReservationService struct {
 	Repo *repository.ReservationRepository
 }
@@ -20,15 +24,15 @@ func NewReservationService(repo *repository.ReservationRepository) *ReservationS
 	return &ReservationService{Repo: repo}
 }
 
-func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) (*entities.AvailabilityResponse, error) {
-	if !req.EndTime.After(req.StartTime) {
-		return &entities.AvailabilityResponse{
-			IsOverallAvailable: false,
-			RequestedStartTime: req.StartTime,
-			RequestedEndTime:   req.EndTime,
-		}, nil
-	}
+func (s *ReservationService) GetPrices() ([]entities.PriceResponse, error) {
+	return s.Repo.GetPrices()
+}
 
+func (s *ReservationService) GetVehicleTypes() ([]db.VehicleType, error) {
+	return s.Repo.GetVehicleTypes()
+}
+
+func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) (*entities.AvailabilityResponse, error) {
 	hourlyDetails, err := s.Repo.GetHourlyAvailabilityDetails(req.StartTime, req.EndTime, req.VehicleTypeID)
 	if err != nil {
 		log.Printf("Error from GetHourlyAvailabilityDetails: %v", err)
@@ -38,7 +42,7 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 	response := &entities.AvailabilityResponse{
 		RequestedStartTime: req.StartTime,
 		RequestedEndTime:   req.EndTime,
-		IsOverallAvailable: true, // Asumimos que sí hasta que se demuestre lo contrario
+		IsOverallAvailable: true,
 	}
 
 	if len(hourlyDetails) == 0 {
@@ -71,6 +75,18 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 	return response, nil
 }
 
+func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, startTime, endTime time.Time) (int, error) {
+	if !endTime.After(startTime) {
+		return 0, fmt.Errorf("end_time must be after start_time")
+	}
+	unit, count, reservationTimeID := getBestUnitAndCount(startTime, endTime)
+	pricePerUnit, err := s.Repo.GetPriceForUnit(vehicleTypeID, reservationTimeID)
+	if err != nil {
+		return 0, fmt.Errorf("could not get price per %s: %w", unit, err)
+	}
+	return pricePerUnit * count, nil
+}
+
 func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (reservationResponse *entities.ReservationResponse, err error) {
 	code := fmt.Sprintf("%08X", time.Now().UnixNano()%100000000)
 
@@ -83,12 +99,14 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		VehiclePlate:    req.VehiclePlate,
 		VehicleModel:    req.VehicleModel,
 		PaymentMethodID: req.PaymentMethodID,
-		Status:          "active",
+		Status:          statusActive,
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
 	}
+
+	// Generar cobro stripe
 
 	err = s.Repo.CreateReservation(reservation)
 	if err != nil {
@@ -96,7 +114,6 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		return reservationResponse, err
 	}
 
-	// Generar cobro stripe
 	//sendReservationSMS(*reservation)
 	//sendReservationEmail(*reservation)
 
@@ -114,69 +131,9 @@ func (s *ReservationService) GetReservationByCode(code, email string) (*entities
 }
 
 func (s *ReservationService) CancelReservation(code string) error {
+	// Cancelar cobro stripe
 	_, err := s.Repo.CancelReservation(code)
 	return err
-}
-
-func (s *ReservationService) GetPrices() ([]entities.PriceResponse, error) {
-	return s.Repo.GetPrices()
-}
-
-func (s *ReservationService) GetVehicleTypes() ([]db.VehicleType, error) {
-	return s.Repo.GetVehicleTypes()
-}
-
-// ADMIN FUNCTIONS
-
-func (s *ReservationService) ListReservations(date, vehicleType, status string) ([]db.Reservation, error) {
-	return s.Repo.ListReservations(date, vehicleType)
-}
-
-func (s *ReservationService) ListVehicleSpaces() ([]db.VehicleSpace, error) {
-	return s.Repo.ListVehicleSpaces()
-}
-
-func (s *ReservationService) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
-	return s.Repo.UpdateVehicleSpaces(vehicleType, totalSpaces, availableSpaces)
-}
-
-// JOBS
-
-// UpdateFinishedReservations busca reservas activas que han finalizado y actualiza su estado a "finished".
-func (s *ReservationService) UpdateFinishedReservations() error {
-	log.Println("Cron Job: Checking for reservations to mark as 'finished'...")
-
-	reservationIDs, err := s.Repo.GetActiveReservationIDsPastEndTime()
-	if err != nil {
-		return fmt.Errorf("cron job: failed to get active reservations past end time: %w", err)
-	}
-
-	if len(reservationIDs) == 0 {
-		log.Println("Cron Job: No active reservations found past their end time.")
-		return nil
-	}
-
-	log.Printf("Cron Job: Found %d reservations to mark as 'finished'. IDs: %v", len(reservationIDs), reservationIDs)
-
-	err = s.Repo.UpdateReservationStatuses(reservationIDs, "finished")
-	if err != nil {
-		return fmt.Errorf("cron job: failed to update reservation statuses: %w", err)
-	}
-
-	log.Printf("Cron Job: Successfully updated %d reservations to 'finished'.", len(reservationIDs))
-	return nil
-}
-
-func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, startTime, endTime time.Time) (int, error) {
-	if !endTime.After(startTime) {
-		return 0, fmt.Errorf("end_time must be after start_time")
-	}
-	unit, count, reservationTimeID := getBestUnitAndCount(startTime, endTime)
-	pricePerUnit, err := s.Repo.GetPriceForUnit(vehicleTypeID, reservationTimeID)
-	if err != nil {
-		return 0, fmt.Errorf("could not get price per %s: %w", unit, err)
-	}
-	return pricePerUnit * count, nil
 }
 
 func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, reservationTimeID int) {

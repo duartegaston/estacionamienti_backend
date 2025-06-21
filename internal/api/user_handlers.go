@@ -21,6 +21,24 @@ func NewUserReservationHandler(svc *service.ReservationService) *UserReservation
 	return &UserReservationHandler{Service: svc}
 }
 
+func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Request) {
+	res, err := h.Service.GetPrices()
+	if err != nil {
+		http.Error(w, "Could not get prices", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(res)
+}
+
+func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.Request) {
+	res, err := h.Service.GetVehicleTypes()
+	if err != nil {
+		http.Error(w, "Could not get vehicle types", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(res)
+}
+
 func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	startTimeStr := queryParams.Get("startTime")
@@ -36,6 +54,7 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 		http.Error(w, fmt.Sprintf("Invalid 'startTime' format. Please use RFC3339 format (e.g., YYYY-MM-DDTHH:MM:SSZ): %v", err), http.StatusBadRequest)
 		return
 	}
+	startTime = startTime.UTC()
 
 	if endTimeStr == "" {
 		http.Error(w, "Query parameter 'endTime' is required", http.StatusBadRequest)
@@ -46,6 +65,7 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 		http.Error(w, fmt.Sprintf("Invalid 'endTime' format. Please use RFC3339 format (e.g., YYYY-MM-DDTHH:MM:SSZ): %v", err), http.StatusBadRequest)
 		return
 	}
+	endTime = endTime.UTC()
 
 	if vehicleTypeIDStr == "" {
 		http.Error(w, "Query parameter 'vehicleTypeId' is required", http.StatusBadRequest)
@@ -92,61 +112,6 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 	}
 }
 
-// TO DO hacer cobro
-func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
-	var req entities.ReservationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
-		return
-	}
-	reservation, err := h.Service.CreateReservation(&req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"reservation": reservation,
-		"message":     "Reservation confirmed.",
-	})
-}
-
-func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.Request) {
-	code := mux.Vars(r)["code"]
-	var req struct {
-		Email string `json:"email"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
-		return
-	}
-	res, err := h.Service.GetReservationByCode(code, req.Email)
-	if err != nil {
-		http.Error(w, "Get reservation not found", http.StatusNotFound)
-		return
-	}
-	json.NewEncoder(w).Encode(res)
-}
-
-// TO DO devolver cobro, enviar sms y email
-func (h *UserReservationHandler) CancelReservation(w http.ResponseWriter, r *http.Request) {
-	code := mux.Vars(r)["code"]
-	err := h.Service.CancelReservation(code)
-	if err != nil {
-		http.Error(w, "Could not cancel reservation", http.StatusInternalServerError)
-		return
-	}
-	json.NewEncoder(w).Encode(map[string]string{"message": "Reservation cancelled"})
-}
-
-func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Request) {
-	res, err := h.Service.GetPrices()
-	if err != nil {
-		http.Error(w, "Could not get prices", http.StatusInternalServerError)
-		return
-	}
-	json.NewEncoder(w).Encode(res)
-}
-
 func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWriter, r *http.Request) {
 	vehicleTypeIDStr := r.URL.Query().Get("vehicle_type_id")
 	startTimeStr := r.URL.Query().Get("start_time")
@@ -168,11 +133,14 @@ func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWrit
 		http.Error(w, "Invalid start_time format. Use RFC3339", http.StatusBadRequest)
 		return
 	}
+	startTime = startTime.UTC()
+
 	endTime, err := time.Parse(time.RFC3339, endTimeStr)
 	if err != nil {
 		http.Error(w, "Invalid end_time format. Use RFC3339", http.StatusBadRequest)
 		return
 	}
+	endTime = endTime.UTC()
 
 	totalPrice, err := h.Service.GetTotalPriceForReservation(vehicleTypeID, startTime, endTime)
 	if err != nil {
@@ -185,11 +153,47 @@ func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWrit
 	json.NewEncoder(w).Encode(response)
 }
 
-func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.Request) {
-	res, err := h.Service.GetVehicleTypes()
+func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
+	var req entities.ReservationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	req.StartTime = req.StartTime.UTC()
+	req.EndTime = req.EndTime.UTC()
+	reservation, err := h.Service.CreateReservation(&req)
 	if err != nil {
-		http.Error(w, "Could not get vehicle types", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"reservation": reservation,
+	})
+}
+
+func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.Request) {
+	code := mux.Vars(r)["code"]
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	res, err := h.Service.GetReservationByCode(code, req.Email)
+	if err != nil {
+		http.Error(w, "Get reservation not found", http.StatusNotFound)
 		return
 	}
 	json.NewEncoder(w).Encode(res)
+}
+
+func (h *UserReservationHandler) CancelReservation(w http.ResponseWriter, r *http.Request) {
+	code := mux.Vars(r)["code"]
+	err := h.Service.CancelReservation(code)
+	if err != nil {
+		http.Error(w, "Could not cancel reservation", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"message": "Reservation cancelled"})
 }
