@@ -162,8 +162,8 @@ func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTi
 func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 	query := `
 		INSERT INTO reservations
-		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_customer_id, stripe_payment_intent_id, stripe_setup_intent_id, stripe_payment_method_id, payment_status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING id, created_at, updated_at`
 	return r.DB.QueryRow(query,
 		res.Code,
@@ -179,6 +179,11 @@ func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 		res.EndTime,
 		res.CreatedAt,
 		res.UpdatedAt,
+		res.StripeCustomerID,
+		res.StripePaymentIntentID,
+		res.StripeSetupIntentID,
+		res.StripePaymentMethodID,
+		res.PaymentStatus,
 	).Scan(&res.ID, &res.CreatedAt, &res.UpdatedAt)
 }
 

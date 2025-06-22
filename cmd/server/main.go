@@ -6,7 +6,7 @@ import (
 	"estacionamienti/internal/auth"
 	"estacionamienti/internal/repository"
 	"estacionamienti/internal/service"
-	"github.com/stripe/stripe-go/v76"
+	"github.com/stripe/stripe-go/v78"
 	"log"
 	"net/http"
 	"os"
@@ -56,7 +56,8 @@ func main() {
 	adminAuthRepo := repository.NewAdminAuthRepository(db)
 
 	// Services
-	reservationSvc := service.NewReservationService(reservationRepo)
+	stripeSvc := service.NewStripeService()
+	reservationSvc := service.NewReservationService(reservationRepo, stripeSvc)
 	jobSvc := service.NewJobService(jobRepo)
 	adminSvc := service.NewAdminService(adminRepo)
 	adminAuthSvc := service.NewAdminAuthService(adminAuthRepo)
@@ -70,7 +71,7 @@ func main() {
 	//   "@hourly": Ejecutar al inicio de cada hora
 	//   "*/1 * * * *"               : Ejecutar cada minuto (para pruebas, puede ser muy frecuente para producción)
 	c := cron.New(cron.WithLocation(time.UTC))
-	_, err = c.AddFunc("*/1 * * * *", func() {
+	_, err = c.AddFunc("@hourly", func() {
 		log.Println("Executing scheduled task: Update Finished Reservations")
 		if err := jobSvc.UpdateFinishedReservations(); err != nil {
 			log.Printf("Error during scheduled task: UpdateFinishedReservations: %v", err)

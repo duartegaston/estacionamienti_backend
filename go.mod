@@ -12,7 +12,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sendgrid/sendgrid-go v3.16.1+incompatible
-	github.com/stripe/stripe-go/v76 v76.25.0
+	github.com/stripe/stripe-go/v78 v78.12.0
 	github.com/twilio/twilio-go v1.26.0
 	golang.org/x/crypto v0.35.0
 )

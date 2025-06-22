@@ -14,6 +14,7 @@ type ReservationRequest struct {
 	Status              string    `json:"status"`
 	StartTime           time.Time `json:"start_time"`
 	EndTime             time.Time `json:"end_time"`
+	TotalPrice          float64   `json:"total_price"`
 }
 
 type ReservationResponse struct {

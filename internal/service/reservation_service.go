@@ -6,6 +6,7 @@ import (
 	"estacionamienti/internal/entities"
 	"estacionamienti/internal/repository"
 	"fmt"
+	"github.com/stripe/stripe-go/v78"
 	"html/template"
 	"log"
 	"path/filepath"
@@ -17,11 +18,13 @@ const (
 )
 
 type ReservationService struct {
-	Repo *repository.ReservationRepository
+	stripeService *StripeService
+	Repo          *repository.ReservationRepository
 }
 
-func NewReservationService(repo *repository.ReservationRepository) *ReservationService {
-	return &ReservationService{Repo: repo}
+func NewReservationService(repo *repository.ReservationRepository, stripeService *StripeService) *ReservationService {
+	return &ReservationService{Repo: repo,
+		stripeService: stripeService}
 }
 
 func (s *ReservationService) GetPrices() ([]entities.PriceResponse, error) {
@@ -106,7 +109,43 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		UpdatedAt:       time.Now().UTC(),
 	}
 
-	// Generar cobro stripe
+	// Stripe logic: handle online and onsite payments
+	var paymentIntent *stripe.PaymentIntent
+	var paymentMethodID, paymentStatus, paymentIntentID, stripeCustomerID string
+
+	if req.PaymentMethodID == 2 { // 2 = online (pay now)
+		paymentIntent, err = s.stripeService.CreatePaymentIntent(int64(req.TotalPrice*100), "usd", reservation.Code)
+		if err != nil {
+			return nil, fmt.Errorf("could not create payment intent: %w", err)
+		}
+		paymentIntentID = paymentIntent.ID
+		paymentStatus = string(paymentIntent.Status)
+		if paymentIntent.Customer != nil {
+			stripeCustomerID = paymentIntent.Customer.ID
+		}
+		if paymentIntent.PaymentMethod != nil {
+			paymentMethodID = paymentIntent.PaymentMethod.ID
+		}
+	} else if req.PaymentMethodID == 1 { // 1 = onsite (guarantee)
+		// Authorize but don't capture, or save card for later
+		paymentIntent, err = s.stripeService.CreatePaymentIntentWithManualCapture(int64(req.TotalPrice*100), "usd", reservation.Code)
+		if err != nil {
+			return nil, fmt.Errorf("could not create payment intent (manual capture): %w", err)
+		}
+		paymentIntentID = paymentIntent.ID
+		paymentStatus = string(paymentIntent.Status)
+		if paymentIntent.Customer != nil {
+			stripeCustomerID = paymentIntent.Customer.ID
+		}
+		if paymentIntent.PaymentMethod != nil {
+			paymentMethodID = paymentIntent.PaymentMethod.ID
+		}
+	}
+
+	reservation.StripePaymentIntentID = paymentIntentID
+	reservation.StripePaymentMethodID = paymentMethodID
+	reservation.StripeCustomerID = stripeCustomerID
+	reservation.PaymentStatus = paymentStatus
 
 	err = s.Repo.CreateReservation(reservation)
 	if err != nil {
