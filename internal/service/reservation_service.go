@@ -139,13 +139,11 @@ func (s *ReservationService) GetReservationByCode(code, email string) (*entities
 }
 
 func (s *ReservationService) CancelReservation(code string) error {
-	// Buscar la reserva para obtener PaymentIntentID y PaymentStatus
 	reservation, err := s.Repo.GetReservationByCodeOnly(code)
 	if err != nil {
 		return err
 	}
 
-	// Verificar que falten más de 12 horas para el inicio (usar UTC)
 	currentTime := time.Now().UTC()
 	if reservation.StartTime.Sub(currentTime) < 12*time.Hour {
 		return fmt.Errorf("Reservations can only be cancelled more than 12 hours before the start time")

@@ -195,7 +195,7 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
             r.code, r.user_name, r.user_email, r.user_phone,
             r.vehicle_type_id, vt.name AS vehicle_type_name,
             r.vehicle_plate, r.vehicle_model,
-            r.payment_method_id, pm.name AS payment_method_name,
+            r.payment_method_id, pm.name AS payment_method_name, r.stripe_payment_intent_id,
             r.status, r.start_time, r.end_time, r.created_at, r.updated_at
         FROM reservations r
         JOIN vehicle_types vt ON r.vehicle_type_id = vt.id
@@ -207,7 +207,7 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
 		&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
 		&res.VehicleTypeID, &res.VehicleTypeName,
 		&res.VehiclePlate, &res.VehicleModel,
-		&res.PaymentMethodID, &res.PaymentMethodName,
+		&res.PaymentMethodID, &res.PaymentMethodName, &res.PaymentIntentClientSecret,
 		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
 	)
 

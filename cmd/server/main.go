@@ -107,6 +107,7 @@ func main() {
 	adminRouter.HandleFunc("/vehicle-config", adminHandler.ListVehicleSpaces).Methods("GET", "OPTIONS")
 	adminRouter.HandleFunc("/vehicle-config/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT", "OPTIONS")
 
+	// Admin stripe
 	adminRouter.HandleFunc("/reservations/{code}/capture", adminHandler.CaptureReservationPayment).Methods("POST", "OPTIONS")
 
 	allowedOrigins := handlers.AllowedOrigins([]string{os.Getenv("FRONTEND_URL"), "http://localhost:3000"})

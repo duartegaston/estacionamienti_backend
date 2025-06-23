@@ -55,6 +55,11 @@ CREATE TABLE reservations (
     end_time TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
+        stripe_customer_id VARCHAR(255),
+        stripe_payment_intent_id VARCHAR(255),
+        stripe_setup_intent_id VARCHAR(255),
+        stripe_payment_method_id VARCHAR(255),
+        payment_status VARCHAR(255)
 );
 
 INSERT INTO vehicle_types (name) VALUES ('car'), ('motorcycle'), ('suv');

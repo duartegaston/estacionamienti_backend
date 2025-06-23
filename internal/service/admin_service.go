@@ -40,6 +40,8 @@ func (s *AdminService) CaptureReservationPayment(code string) error {
 	if err != nil {
 		return err
 	}
+
+	// Ver si ademas valido que haya finalizado la reserva.
 	if reservation.PaymentStatus != statusRequiresCapture {
 		return fmt.Errorf("Payment cannot be captured in status: %s", reservation.PaymentStatus)
 	}
@@ -48,7 +50,7 @@ func (s *AdminService) CaptureReservationPayment(code string) error {
 		return err
 	}
 
-	// Podés consultar de nuevo el intent para guardar el estado real
+	// Update payment status
 	intent, err := s.stripeService.GetPaymentIntent(reservation.StripePaymentIntentID)
 	if err != nil {
 		return err
