@@ -59,7 +59,7 @@ func main() {
 	stripeSvc := service.NewStripeService()
 	reservationSvc := service.NewReservationService(reservationRepo, stripeSvc)
 	jobSvc := service.NewJobService(jobRepo)
-	adminSvc := service.NewAdminService(adminRepo)
+	adminSvc := service.NewAdminService(adminRepo, reservationRepo, stripeSvc)
 	adminAuthSvc := service.NewAdminAuthService(adminAuthRepo)
 
 	// Handlers
@@ -106,6 +106,8 @@ func main() {
 	adminRouter.HandleFunc("/reservations/{code}", adminHandler.AdminDeleteReservation).Methods("DELETE", "OPTIONS")
 	adminRouter.HandleFunc("/vehicle-config", adminHandler.ListVehicleSpaces).Methods("GET", "OPTIONS")
 	adminRouter.HandleFunc("/vehicle-config/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT", "OPTIONS")
+
+	adminRouter.HandleFunc("/reservations/{code}/capture", adminHandler.CaptureReservationPayment).Methods("POST", "OPTIONS")
 
 	allowedOrigins := handlers.AllowedOrigins([]string{os.Getenv("FRONTEND_URL"), "http://localhost:3000"})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})

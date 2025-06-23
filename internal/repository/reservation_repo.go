@@ -247,3 +247,12 @@ func (r *ReservationRepository) GetReservationByCodeOnly(code string) (*db.Reser
 	}
 	return &res, nil
 }
+
+func (r *ReservationRepository) UpdatePaymentStatus(reservationID int, paymentStatus string) error {
+	query := `
+		UPDATE reservations
+		SET payment_status = $1, updated_at = NOW()
+		WHERE id = $2`
+	_, err := r.DB.Exec(query, paymentStatus, reservationID)
+	return err
+}

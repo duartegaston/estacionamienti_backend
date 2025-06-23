@@ -70,3 +70,13 @@ func (h *AdminHandler) UpdateVehicleSpaces(w http.ResponseWriter, r *http.Reques
 	}
 	json.NewEncoder(w).Encode(map[string]string{"message": "Vehicle spaces updated"})
 }
+
+func (h *AdminHandler) CaptureReservationPayment(w http.ResponseWriter, r *http.Request) {
+	code := mux.Vars(r)["code"]
+	err := h.adminService.CaptureReservationPayment(code)
+	if err != nil {
+		http.Error(w, "Could not capture payment", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"message": "Payment captured"})
+}

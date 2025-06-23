@@ -39,6 +39,11 @@ func (s *StripeService) CreatePaymentIntentWithManualCapture(amount int64, curre
 	return paymentintent.New(params)
 }
 
+// Get payment
+func (s *StripeService) GetPaymentIntent(paymentIntentID string) (*stripe.PaymentIntent, error) {
+	return paymentintent.Get(paymentIntentID, nil)
+}
+
 // Refund payment
 func (s *StripeService) RefundPayment(paymentIntentID string) error {
 	params := &stripe.RefundParams{
@@ -48,7 +53,14 @@ func (s *StripeService) RefundPayment(paymentIntentID string) error {
 	return err
 }
 
+// Cancel payment
 func (s *StripeService) CancelPaymentIntent(paymentIntentID string) error {
 	_, err := paymentintent.Cancel(paymentIntentID, nil)
+	return err
+}
+
+// Capture payment
+func (s *StripeService) CapturePaymentIntent(paymentIntentID string) error {
+	_, err := paymentintent.Capture(paymentIntentID, nil)
 	return err
 }
