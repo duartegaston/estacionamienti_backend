@@ -6,7 +6,8 @@ import (
 	"estacionamienti/internal/entities"
 	"estacionamienti/internal/repository"
 	"fmt"
-	"github.com/stripe/stripe-go/v78"
+	"github.com/stripe/stripe-go/v82"
+
 	"html/template"
 	"log"
 	"path/filepath"
@@ -168,6 +169,14 @@ func (s *ReservationService) CancelReservation(code string) error {
 	return err
 }
 
+func (s *ReservationService) UpdatePaymentStatusByStripeID(paymentIntentID, newStatus string) error {
+	reservation, err := s.Repo.GetReservationByStripePaymentIntentID(paymentIntentID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.UpdatePaymentStatus(reservation.ID, newStatus)
+}
+
 func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, reservationTimeID int) {
 	d := endTime.Sub(startTime)
 	if d.Hours() < 24 {
@@ -254,7 +263,7 @@ func sendReservationEmail(reservation db.Reservation) {
 			"Entrada: %s\n"+
 			"Salida: %s\n\n"+
 			"Gracias por elegir GreenPark.\n\n"+
-			"© %d GreenPark. Todos los derechos reservados.",
+			" GreenPark. Todos los derechos reservados.",
 		emailData.UserName, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
 		emailData.StartTimeFormatted, emailData.EndTimeFormatted, emailData.CurrentYear,
 	)

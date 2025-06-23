@@ -6,7 +6,7 @@ import (
 	"estacionamienti/internal/auth"
 	"estacionamienti/internal/repository"
 	"estacionamienti/internal/service"
-	"github.com/stripe/stripe-go/v78"
+	"github.com/stripe/stripe-go/v82"
 	"log"
 	"net/http"
 	"os"
@@ -66,6 +66,7 @@ func main() {
 	userReservationHandler := api.NewUserReservationHandler(reservationSvc)
 	adminHandler := api.NewAdminHandler(adminSvc)
 	adminAuthHandler := api.NewAdminAuthHandler(adminAuthSvc)
+	stripeHandler := api.NewStripeWebhookHandler(os.Getenv("STRIPE_WEBHOOK_SECRET"), reservationSvc)
 
 	// Cron scheduler
 	//   "@hourly": Ejecutar al inicio de cada hora
@@ -90,7 +91,7 @@ func main() {
 	r.HandleFunc("/api/vehicle-types", userReservationHandler.GetVehicleTypes).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/availability", userReservationHandler.CheckAvailability).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/total-price", userReservationHandler.GetTotalPriceForReservation).Methods("GET", "OPTIONS")
-	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST", "OPTIONS") //TODO: hacer cobro
+	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE", "OPTIONS")
 
@@ -109,6 +110,9 @@ func main() {
 
 	// Admin stripe
 	adminRouter.HandleFunc("/reservations/{code}/capture", adminHandler.CaptureReservationPayment).Methods("POST", "OPTIONS")
+
+	// Stripe
+	r.HandleFunc("/webhook/stripe", stripeHandler.HandleWebhook).Methods("POST", "OPTIONS")
 
 	allowedOrigins := handlers.AllowedOrigins([]string{os.Getenv("FRONTEND_URL"), "http://localhost:3000"})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})

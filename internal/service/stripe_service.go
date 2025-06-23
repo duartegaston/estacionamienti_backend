@@ -1,9 +1,9 @@
 package service
 
 import (
-	"github.com/stripe/stripe-go/v78"
-	"github.com/stripe/stripe-go/v78/paymentintent"
-	"github.com/stripe/stripe-go/v78/refund"
+	"github.com/stripe/stripe-go/v82"
+	"github.com/stripe/stripe-go/v82/paymentintent"
+	"github.com/stripe/stripe-go/v82/refund"
 )
 
 type StripeService struct{}
