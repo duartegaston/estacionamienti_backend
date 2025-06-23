@@ -56,5 +56,5 @@ func (s *AdminService) CaptureReservationPayment(code string) error {
 		return err
 	}
 	reservation.PaymentStatus = string(intent.Status)
-	return s.reservationRepo.UpdatePaymentStatus(reservation.ID, reservation.PaymentStatus)
+	return s.reservationRepo.UpdateReservationAndPaymentStatus(reservation.ID, "active", reservation.PaymentStatus)
 }

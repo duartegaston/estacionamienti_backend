@@ -16,6 +16,7 @@ import (
 
 const (
 	statusActive          = "active"
+	statusPending         = "pending"
 	statusRequiresCapture = "requires_capture"
 	statusSucceeded       = "succeeded"
 )
@@ -123,9 +124,6 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		return reservationResponse, err
 	}
 
-	//sendReservationSMS(*reservation)
-	//sendReservationEmail(*reservation)
-
 	reservationResponse, err = s.Repo.GetReservationByCode(code, req.UserEmail)
 	if err != nil {
 		log.Printf("Error from GetReservationByCode: %v", err)
@@ -169,12 +167,80 @@ func (s *ReservationService) CancelReservation(code string) error {
 	return err
 }
 
-func (s *ReservationService) UpdatePaymentStatusByStripeID(paymentIntentID, newStatus string) error {
+func (s *ReservationService) UpdateReservationAndPaymentStatusByStripeID(paymentIntentID, reservationStatus, paymentStatus string) error {
 	reservation, err := s.Repo.GetReservationByStripePaymentIntentID(paymentIntentID)
 	if err != nil {
 		return err
 	}
-	return s.Repo.UpdatePaymentStatus(reservation.ID, newStatus)
+	return s.Repo.UpdateReservationAndPaymentStatus(reservation.ID, reservationStatus, paymentStatus)
+}
+
+func (s *ReservationService) GerReservationByPaymentIntentID(paymentIntentID string) (*db.Reservation, error) {
+	reservation, err := s.Repo.GetReservationByStripePaymentIntentID(paymentIntentID)
+	if err != nil {
+		return nil, err
+	}
+	return reservation, nil
+}
+
+func (s *ReservationService) SendReservationEmail(reservation db.Reservation, status string) {
+	emailData := entities.ReservationEmailData{
+		UserName:           reservation.UserName,
+		ReservationCode:    reservation.Code,
+		VehicleModel:       reservation.VehicleModel,
+		VehiclePlate:       reservation.VehiclePlate,
+		StartTimeFormatted: reservation.StartTime.Format("02 Jan 2006 15:04 MST"),
+		EndTimeFormatted:   reservation.EndTime.Format("02 Jan 2006 15:04 MST"),
+		CurrentYear:        time.Now().Year(),
+	}
+
+	emailSubject := fmt.Sprintf("Your GreenParking reservation confirmation - Code: %s", emailData.ReservationCode)
+
+	plainTextBody := fmt.Sprintf(
+		"Hello %s,\n\nYour reservation at GreenPark has been %s.\n\n"+
+			"Reservation Details:\n"+
+			"Reservation Code: %s\n"+
+			"Vehicle: %s (Plate: %s)\n"+
+			"Check-in: %s\n"+
+			"Check-out: %s\n\n"+
+			"Thank you for choosing GreenParking.\n\n"+
+			" GreenParking. All rights reserved.",
+		status, emailData.UserName, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
+		emailData.StartTimeFormatted, emailData.EndTimeFormatted, emailData.CurrentYear,
+	)
+
+	tmplPath := filepath.Join("internal", "templates", "reservation_email.html")
+	tmpl, err := template.ParseFiles(tmplPath)
+	if err != nil {
+		log.Printf("ALERTA: Error al parsear la plantilla de correo HTML (%s): %v", tmplPath, err)
+	}
+
+	var htmlBodyBuffer bytes.Buffer
+	if err := tmpl.Execute(&htmlBodyBuffer, emailData); err != nil {
+		log.Printf("ALERTA: Error al ejecutar la plantilla de correo HTML para reserva %s: %v", emailData.ReservationCode, err)
+	}
+	htmlBody := htmlBodyBuffer.String()
+
+	go func(toEmail, userName, subject, plainBody, htmlBodyContent string) {
+		errEmail := SendEmailWithSendGrid(toEmail, userName, subject, plainBody, htmlBodyContent)
+		if errEmail != nil {
+			log.Printf("ALERTA (asíncrono): Falló envío de correo para reserva %s: %v", emailData.ReservationCode, errEmail)
+		}
+	}(reservation.UserEmail, emailData.UserName, emailSubject, plainTextBody, htmlBody)
+}
+
+func (s *ReservationService) SendReservationSMS(reservation db.Reservation, status string) {
+	userPhoneNumber := reservation.UserPhone
+	reservationCode := reservation.Code
+	smsMessage := fmt.Sprintf("GreenParking: Reservation %s has been %s!\nCheck-in: %s.\nMore details in your email.",
+		reservationCode, status,
+		reservation.StartTime.Format("02/01 15:04"),
+	)
+
+	errSMS := SendSMS(userPhoneNumber, smsMessage)
+	if errSMS != nil {
+		log.Printf("ALERTA: La reserva %s se creó, pero falló el envío del SMS de confirmación a %s: %v", reservationCode, userPhoneNumber, errSMS)
+	}
 }
 
 func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, reservationTimeID int) {
@@ -240,64 +306,4 @@ func (s *ReservationService) handlePaymentIntent(req *entities.ReservationReques
 		}
 	}
 	return nil
-}
-
-func sendReservationEmail(reservation db.Reservation) {
-	emailData := entities.ReservationEmailData{
-		UserName:           reservation.UserName,
-		ReservationCode:    reservation.Code,
-		VehicleModel:       reservation.VehicleModel,
-		VehiclePlate:       reservation.VehiclePlate,
-		StartTimeFormatted: reservation.StartTime.Format("02 Jan 2006 15:04 MST"),
-		EndTimeFormatted:   reservation.EndTime.Format("02 Jan 2006 15:04 MST"),
-		CurrentYear:        time.Now().Year(),
-	}
-
-	emailSubject := fmt.Sprintf("Confirmación de tu Reserva en GreenPark - Código: %s", emailData.ReservationCode)
-
-	plainTextBody := fmt.Sprintf(
-		"Hola %s,\n\nTu reserva en GreenPark ha sido confirmada.\n\n"+
-			"Detalles de la Reserva:\n"+
-			"Código de Reserva: %s\n"+
-			"Vehículo: %s (Matrícula: %s)\n"+
-			"Entrada: %s\n"+
-			"Salida: %s\n\n"+
-			"Gracias por elegir GreenPark.\n\n"+
-			" GreenPark. Todos los derechos reservados.",
-		emailData.UserName, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
-		emailData.StartTimeFormatted, emailData.EndTimeFormatted, emailData.CurrentYear,
-	)
-
-	tmplPath := filepath.Join("internal", "templates", "reservation_email.html")
-	tmpl, err := template.ParseFiles(tmplPath)
-	if err != nil {
-		log.Printf("ALERTA: Error al parsear la plantilla de correo HTML (%s): %v", tmplPath, err)
-	}
-
-	var htmlBodyBuffer bytes.Buffer
-	if err := tmpl.Execute(&htmlBodyBuffer, emailData); err != nil {
-		log.Printf("ALERTA: Error al ejecutar la plantilla de correo HTML para reserva %s: %v", emailData.ReservationCode, err)
-	}
-	htmlBody := htmlBodyBuffer.String()
-
-	go func(toEmail, userName, subject, plainBody, htmlBodyContent string) {
-		errEmail := SendEmailWithSendGrid(toEmail, userName, subject, plainBody, htmlBodyContent)
-		if errEmail != nil {
-			log.Printf("ALERTA (asíncrono): Falló envío de correo para reserva %s: %v", emailData.ReservationCode, errEmail)
-		}
-	}(reservation.UserEmail, emailData.UserName, emailSubject, plainTextBody, htmlBody)
-}
-
-func sendReservationSMS(reservation db.Reservation) {
-	userPhoneNumber := reservation.UserPhone
-	reservationCode := reservation.Code
-	smsMessage := fmt.Sprintf("GreenParking: Reserva %s confirmada!\nEntrada: %s.\nMás detalles en tu email.",
-		reservationCode,
-		reservation.StartTime.Format("02/01 15:04"),
-	)
-
-	errSMS := SendSMS(userPhoneNumber, smsMessage)
-	if errSMS != nil {
-		log.Printf("ALERTA: La reserva %s se creó, pero falló el envío del SMS de confirmación a %s: %v", reservationCode, userPhoneNumber, errSMS)
-	}
 }

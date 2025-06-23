@@ -11,6 +11,14 @@ import (
 	"github.com/stripe/stripe-go/v82/webhook"
 )
 
+const (
+	active        = "active"
+	canceled      = "canceled"
+	refunded      = "refunded"
+	paymentFailed = "payment_failed"
+	confirmed     = "confirmed"
+)
+
 type StripeWebhookHandler struct {
 	StripeSecret       string
 	reservationService *service.ReservationService
@@ -49,19 +57,30 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		err := h.reservationService.UpdatePaymentStatusByStripeID(pi.ID, string(pi.Status))
+		err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(pi.ID, active, string(pi.Status))
 		log.Printf("PaymentIntent succeeded: %s", pi.ID)
 		if err != nil {
 			log.Printf("DB error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		reservation, err := h.reservationService.GerReservationByPaymentIntentID(pi.ID)
+		if err != nil {
+			log.Printf("DB error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		h.reservationService.SendReservationSMS(*reservation, confirmed)
+		h.reservationService.SendReservationEmail(*reservation, confirmed)
 
 	case "payment_intent.payment_failed":
 		var pi stripe.PaymentIntent
 		json.Unmarshal(event.Data.Raw, &pi)
 		log.Printf("PaymentIntent failed: %s", pi.ID)
-		err := h.reservationService.UpdatePaymentStatusByStripeID(pi.ID, "payment_failed")
+		// Enviar mail y sms con aviso de payment failed (tarjeta vencida o sin fondos)
+		// cambia status de reserva y de payment, dejar reserva activa y que pague en el lugar?
+		// ver de dar solucion al usuario en este caso, reintentar pago o algo asi.
+		err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(pi.ID, active, paymentFailed)
 		if err != nil {
 			return
 		}
@@ -70,7 +89,9 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 		var pi stripe.PaymentIntent
 		json.Unmarshal(event.Data.Raw, &pi)
 		log.Printf("PaymentIntent canceled: %s", pi.ID)
-		err := h.reservationService.UpdatePaymentStatusByStripeID(pi.ID, "canceled")
+		// si se cancela el pago debo cancelar la reserva
+		// esto sucede cuando el usuario hizo la reserva pero luego se cancelo el pago.
+		err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(pi.ID, canceled, canceled)
 		if err != nil {
 			return
 		}
@@ -80,14 +101,15 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 		json.Unmarshal(event.Data.Raw, &charge)
 		if charge.PaymentIntent != nil {
 			log.Printf("Charge refunded for PI %s", charge.PaymentIntent.ID)
-			err := h.reservationService.UpdatePaymentStatusByStripeID(charge.PaymentIntent.ID, "refunded")
+			// devolucion del dinero y cancelar la reserva
+			err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(charge.PaymentIntent.ID, canceled, refunded)
 			if err != nil {
 				return
 			}
 		}
 
 	default:
-		log.Printf("ℹUnhandled event type: %s", event.Type)
+		log.Printf("Unhandled event type: %s", event.Type)
 	}
 
 	w.WriteHeader(http.StatusOK)

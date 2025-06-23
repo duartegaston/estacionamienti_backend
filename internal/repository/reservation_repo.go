@@ -265,11 +265,11 @@ func (r *ReservationRepository) GetReservationByStripePaymentIntentID(paymentInt
 	return &res, nil
 }
 
-func (r *ReservationRepository) UpdatePaymentStatus(reservationID int, paymentStatus string) error {
+func (r *ReservationRepository) UpdateReservationAndPaymentStatus(reservationID int, reservationStatus, paymentStatus string) error {
 	query := `
 		UPDATE reservations
-		SET payment_status = $1, updated_at = NOW()
-		WHERE id = $2`
-	_, err := r.DB.Exec(query, paymentStatus, reservationID)
+		SET payment_status = $1, status = $2, updated_at = NOW()
+		WHERE id = $3`
+	_, err := r.DB.Exec(query, paymentStatus, reservationStatus, reservationID)
 	return err
 }
