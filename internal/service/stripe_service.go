@@ -47,3 +47,8 @@ func (s *StripeService) RefundPayment(paymentIntentID string) error {
 	_, err := refund.New(params)
 	return err
 }
+
+func (s *StripeService) CancelPaymentIntent(paymentIntentID string) error {
+	_, err := paymentintent.Cancel(paymentIntentID, nil)
+	return err
+}

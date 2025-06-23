@@ -14,7 +14,9 @@ import (
 )
 
 const (
-	statusActive = "active"
+	statusActive          = "active"
+	statusRequiresCapture = "requires_capture"
+	statusSucceeded       = "succeeded"
 )
 
 type ReservationService struct {
@@ -149,8 +151,14 @@ func (s *ReservationService) CancelReservation(code string) error {
 		return fmt.Errorf("Reservations can only be cancelled more than 12 hours before the start time")
 	}
 
-	// Si la reserva fue pagada, hacer refund
-	if reservation.StripePaymentIntentID != "" && reservation.PaymentStatus == "succeeded" {
+	if reservation.PaymentStatus == statusRequiresCapture {
+		// Autorizado, pero no capturado: cancelarlo
+		err := s.stripeService.CancelPaymentIntent(reservation.StripePaymentIntentID)
+		if err != nil {
+			return err
+		}
+	} else if reservation.PaymentStatus == statusSucceeded {
+		// Pagado: hacer refund
 		err := s.stripeService.RefundPayment(reservation.StripePaymentIntentID)
 		if err != nil {
 			return err
