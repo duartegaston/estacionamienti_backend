@@ -39,7 +39,7 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 	hourlyDetails, err := s.Repo.GetHourlyAvailabilityDetails(req.StartTime, req.EndTime, req.VehicleTypeID)
 	if err != nil {
 		log.Printf("Error from GetHourlyAvailabilityDetails: %v", err)
-		return nil, fmt.Errorf("error interno al verificar disponibilidad: %w", err)
+		return nil, fmt.Errorf("internal error checking availability: %w", err)
 	}
 
 	response := &entities.AvailabilityResponse{
@@ -126,7 +126,7 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 	reservationResponse, err = s.Repo.GetReservationByCode(code, req.UserEmail)
 	if err != nil {
 		log.Printf("Error from GetReservationByCode: %v", err)
-		return reservationResponse, fmt.Errorf("error interno al crear la reserva: %w", err)
+		return reservationResponse, fmt.Errorf("internal error creating reservation: %w", err)
 	}
 
 	return reservationResponse, nil
@@ -137,9 +137,28 @@ func (s *ReservationService) GetReservationByCode(code, email string) (*entities
 }
 
 func (s *ReservationService) CancelReservation(code string) error {
-	// Cancelar cobro stripe
-	_, err := s.Repo.CancelReservation(code)
-	// Enviar main y SMS
+	// Buscar la reserva para obtener PaymentIntentID y PaymentStatus
+	reservation, err := s.Repo.GetReservationByCodeOnly(code)
+	if err != nil {
+		return err
+	}
+
+	// Verificar que falten más de 12 horas para el inicio (usar UTC)
+	currentTime := time.Now().UTC()
+	if reservation.StartTime.Sub(currentTime) < 12*time.Hour {
+		return fmt.Errorf("Reservations can only be cancelled more than 12 hours before the start time")
+	}
+
+	// Si la reserva fue pagada, hacer refund
+	if reservation.StripePaymentIntentID != "" && reservation.PaymentStatus == "succeeded" {
+		err := s.stripeService.RefundPayment(reservation.StripePaymentIntentID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Cancelar reserva
+	_, err = s.Repo.CancelReservation(code)
 	return err
 }
 

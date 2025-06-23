@@ -230,3 +230,20 @@ func (r *ReservationRepository) CancelReservation(code string) (string, error) {
 	}
 	return status, nil
 }
+
+func (r *ReservationRepository) GetReservationByCodeOnly(code string) (*db.Reservation, error) {
+	var res db.Reservation
+	query := `
+		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_customer_id, stripe_payment_intent_id, stripe_setup_intent_id, stripe_payment_method_id, payment_status
+		FROM reservations WHERE code = $1`
+	err := r.DB.QueryRow(query, code).Scan(
+		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.StripeCustomerID, &res.StripePaymentIntentID, &res.StripeSetupIntentID, &res.StripePaymentMethodID, &res.PaymentStatus,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("reservation with code '%s' not found: %w", code, err)
+		}
+		return nil, fmt.Errorf("error querying reservation: %w", err)
+	}
+	return &res, nil
+}

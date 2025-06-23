@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/stripe/stripe-go/v78"
 	"github.com/stripe/stripe-go/v78/paymentintent"
+	"github.com/stripe/stripe-go/v78/refund"
 )
 
 type StripeService struct{}
@@ -36,4 +37,13 @@ func (s *StripeService) CreatePaymentIntentWithManualCapture(amount int64, curre
 		},
 	}
 	return paymentintent.New(params)
+}
+
+// Refund payment
+func (s *StripeService) RefundPayment(paymentIntentID string) error {
+	params := &stripe.RefundParams{
+		PaymentIntent: stripe.String(paymentIntentID),
+	}
+	_, err := refund.New(params)
+	return err
 }
