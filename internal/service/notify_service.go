@@ -44,8 +44,6 @@ func SendEmailWithSendGrid(toEmailAddress, toName, subject, plainTextContent, ht
 
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		log.Printf("Correo enviado exitosamente a %s (Asunto: %s). Estado: %d", toEmailAddress, subject, response.StatusCode)
-		log.Println("Cuerpo de la respuesta de SendGrid:", response.Body)
-		log.Println("Cabeceras de la respuesta de SendGrid:", response.Headers)
 		return nil
 	}
 

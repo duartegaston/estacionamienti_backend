@@ -242,7 +242,7 @@ func (s *ReservationService) SendReservationSMS(reservation db.Reservation, stat
 		reservation.StartTime.Format("02/01 15:04"),
 	)
 
-	errSMS := SendSMS(userPhoneNumber, smsMessage)
+	errSMS := (userPhoneNumber, smsMessage)
 	if errSMS != nil {
 		log.Printf("ALERTA: La reserva %s se creó, pero falló el envío del SMS de confirmación a %s: %v", reservationCode, userPhoneNumber, errSMS)
 	}
