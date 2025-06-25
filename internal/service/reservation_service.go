@@ -16,9 +16,10 @@ import (
 
 const (
 	statusActive          = "active"
-	statusPending         = "pending"
+	confirmed             = "confirmed"
 	statusRequiresCapture = "requires_capture"
 	statusSucceeded       = "succeeded"
+	statusCancel          = "canceled"
 )
 
 type ReservationService struct {
@@ -145,16 +146,18 @@ func (s *ReservationService) CancelReservation(code string) error {
 
 	currentTime := time.Now().UTC()
 	if reservation.StartTime.Sub(currentTime) < 12*time.Hour {
+		log.Printf("Reservation can only be cancelled more than 12 hours before the start time")
 		return fmt.Errorf("Reservations can only be cancelled more than 12 hours before the start time")
 	}
 
-	if reservation.PaymentStatus == statusRequiresCapture {
+	if reservation.PaymentMethodID == 1 {
 		// Autorizado, pero no capturado: cancelarlo
+		log.Printf("Canceling payment intent: %s", reservation.StripePaymentIntentID)
 		err := s.stripeService.CancelPaymentIntent(reservation.StripePaymentIntentID)
 		if err != nil {
 			return err
 		}
-	} else if reservation.PaymentStatus == statusSucceeded {
+	} else if reservation.PaymentMethodID == 2 {
 		// Pagado: hacer refund
 		err := s.stripeService.RefundPayment(reservation.StripePaymentIntentID)
 		if err != nil {
@@ -162,8 +165,10 @@ func (s *ReservationService) CancelReservation(code string) error {
 		}
 	}
 
-	// Cancelar reserva
 	_, err = s.Repo.CancelReservation(code)
+
+	s.SendReservationSMS(*reservation, statusCancel)
+	s.SendReservationEmail(*reservation, statusCancel)
 	return err
 }
 
@@ -194,7 +199,7 @@ func (s *ReservationService) SendReservationEmail(reservation db.Reservation, st
 		CurrentYear:        time.Now().Year(),
 	}
 
-	emailSubject := fmt.Sprintf("Your GreenParking reservation confirmation - Code: %s", emailData.ReservationCode)
+	emailSubject := fmt.Sprintf("Your GreenParking reservation %s - Code: %s", status, emailData.ReservationCode)
 
 	plainTextBody := fmt.Sprintf(
 		"Hello %s,\n\nYour reservation at GreenPark has been %s.\n\n"+
@@ -243,6 +248,37 @@ func (s *ReservationService) SendReservationSMS(reservation db.Reservation, stat
 	}
 }
 
+func (s *ReservationService) handlePaymentIntent(req *entities.ReservationRequest, reservation *db.Reservation) error {
+	var paymentIntent *stripe.PaymentIntent
+	var err error
+
+	if req.PaymentMethodID == 2 { // 2 = online (pay now)
+		paymentIntent, err = s.stripeService.CreatePaymentIntent(int64(req.TotalPrice*100), "eur", reservation.Code)
+		if err != nil {
+			return err
+		}
+	} else if req.PaymentMethodID == 1 { // 1 = onsite (guarantee)
+		paymentIntent, err = s.stripeService.CreatePaymentIntentWithManualCapture(int64(req.TotalPrice*100), "eur", reservation.Code)
+		s.SendReservationEmail(*reservation, confirmed)
+		s.SendReservationSMS(*reservation, confirmed)
+		if err != nil {
+			return err
+		}
+	}
+
+	if paymentIntent != nil {
+		reservation.StripePaymentIntentID = paymentIntent.ID
+		reservation.PaymentStatus = string(paymentIntent.Status)
+		if paymentIntent.Customer != nil {
+			reservation.StripeCustomerID = paymentIntent.Customer.ID
+		}
+		if paymentIntent.PaymentMethod != nil {
+			reservation.StripePaymentMethodID = paymentIntent.PaymentMethod.ID
+		}
+	}
+	return nil
+}
+
 func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, reservationTimeID int) {
 	d := endTime.Sub(startTime)
 	if d.Hours() < 24 {
@@ -277,33 +313,4 @@ func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, 
 		}
 		return "month", count, 4
 	}
-}
-
-func (s *ReservationService) handlePaymentIntent(req *entities.ReservationRequest, reservation *db.Reservation) error {
-	var paymentIntent *stripe.PaymentIntent
-	var err error
-
-	if req.PaymentMethodID == 2 { // 2 = online (pay now)
-		paymentIntent, err = s.stripeService.CreatePaymentIntent(int64(req.TotalPrice*100), "usd", reservation.Code)
-		if err != nil {
-			return err
-		}
-	} else if req.PaymentMethodID == 1 { // 1 = onsite (guarantee)
-		paymentIntent, err = s.stripeService.CreatePaymentIntentWithManualCapture(int64(req.TotalPrice*100), "usd", reservation.Code)
-		if err != nil {
-			return err
-		}
-	}
-
-	if paymentIntent != nil {
-		reservation.StripePaymentIntentID = paymentIntent.ID
-		reservation.PaymentStatus = string(paymentIntent.Status)
-		if paymentIntent.Customer != nil {
-			reservation.StripeCustomerID = paymentIntent.Customer.ID
-		}
-		if paymentIntent.PaymentMethod != nil {
-			reservation.StripePaymentMethodID = paymentIntent.PaymentMethod.ID
-		}
-	}
-	return nil
 }

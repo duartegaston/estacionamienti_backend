@@ -28,6 +28,7 @@ type ReservationResponse struct {
 	PaymentMethodID           int       `json:"payment_method_id"`
 	PaymentMethodName         string    `json:"payment_method_name"`
 	PaymentIntentClientSecret string    `json:"payment_intent_client_secret,omitempty"`
+	PaymentStatus             string    `json:"payment_status,omitempty"`
 	Status                    string    `json:"status"`
 	StartTime                 time.Time `json:"start_time"`
 	EndTime                   time.Time `json:"end_time"`

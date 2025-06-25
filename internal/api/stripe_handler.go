@@ -77,31 +77,24 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 		var pi stripe.PaymentIntent
 		json.Unmarshal(event.Data.Raw, &pi)
 		log.Printf("PaymentIntent failed: %s", pi.ID)
-		// Enviar mail y sms con aviso de payment failed (tarjeta vencida o sin fondos)
-		// cambia status de reserva y de payment, dejar reserva activa y que pague en el lugar?
+		// Payment failed: (tarjeta vencida o sin fondos)
 		// ver de dar solucion al usuario en este caso, reintentar pago o algo asi.
 		err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(pi.ID, active, paymentFailed)
 		if err != nil {
 			return
 		}
-
-	case "payment_intent.canceled":
-		var pi stripe.PaymentIntent
-		json.Unmarshal(event.Data.Raw, &pi)
-		log.Printf("PaymentIntent canceled: %s", pi.ID)
-		// si se cancela el pago debo cancelar la reserva
-		// esto sucede cuando el usuario hizo la reserva pero luego se cancelo el pago.
-		err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(pi.ID, canceled, canceled)
-		if err != nil {
-			return
-		}
+		// Op 1: dejar la reserva activa avisandole al usuario que debe pagar en el lugar o la puede cancelar.
+		// Msj: Tu pago no se pudo procesar. Podés pagar al llegar al estacionamiento o cancelar sin cargo hasta X horas antes.
+		// Contra: el usuario si no va no tenemos forma de cobrarle.
+		// Op 2: cancelar la reserva avisando al usuario.
+		// Evitamos reserva fantasma.
+		// Op 3: ver si podemos darle la posibilidad de reintentar el pago. Pero tendria que implementar un cron job para cancelarla si pasaron X horas
 
 	case "charge.refunded":
 		var charge stripe.Charge
 		json.Unmarshal(event.Data.Raw, &charge)
 		if charge.PaymentIntent != nil {
 			log.Printf("Charge refunded for PI %s", charge.PaymentIntent.ID)
-			// devolucion del dinero y cancelar la reserva
 			err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(charge.PaymentIntent.ID, canceled, refunded)
 			if err != nil {
 				return
