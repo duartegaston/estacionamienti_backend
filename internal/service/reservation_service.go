@@ -210,7 +210,7 @@ func (s *ReservationService) SendReservationEmail(reservation db.Reservation, st
 			"Check-out: %s\n\n"+
 			"Thank you for choosing GreenParking.\n\n"+
 			" GreenParking. All rights reserved.",
-		status, emailData.UserName, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
+		emailData.UserName, status, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
 		emailData.StartTimeFormatted, emailData.EndTimeFormatted, emailData.CurrentYear,
 	)
 
