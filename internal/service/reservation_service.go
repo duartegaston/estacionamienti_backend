@@ -6,8 +6,6 @@ import (
 	"estacionamienti/internal/entities"
 	"estacionamienti/internal/repository"
 	"fmt"
-	"github.com/stripe/stripe-go/v82"
-
 	"html/template"
 	"log"
 	"path/filepath"
@@ -16,6 +14,7 @@ import (
 
 const (
 	statusActive          = "active"
+	statusPending         = "pending"
 	confirmed             = "confirmed"
 	statusRequiresCapture = "requires_capture"
 	statusSucceeded       = "succeeded"
@@ -95,7 +94,7 @@ func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, star
 	return pricePerUnit * count, nil
 }
 
-func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (reservationResponse *entities.ReservationResponse, err error) {
+func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (*entities.StripeSessionResponse, error) {
 	code := fmt.Sprintf("%08X", time.Now().UnixNano()%100000000)
 
 	reservation := &db.Reservation{
@@ -107,14 +106,14 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		VehiclePlate:    req.VehiclePlate,
 		VehicleModel:    req.VehicleModel,
 		PaymentMethodID: req.PaymentMethodID,
-		Status:          statusActive,
+		Status:          statusPending,
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
 
-	err = s.handlePaymentIntent(req, reservation)
+	sessionURL, err := s.handlePaymentIntent(req, reservation)
 	if err != nil {
 		return nil, err
 	}
@@ -122,16 +121,10 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 	err = s.Repo.CreateReservation(reservation)
 	if err != nil {
 		log.Printf("Error creating reservation in repository: %v", err)
-		return reservationResponse, err
+		return nil, err
 	}
 
-	reservationResponse, err = s.Repo.GetReservationByCode(code, req.UserEmail)
-	if err != nil {
-		log.Printf("Error from GetReservationByCode: %v", err)
-		return reservationResponse, fmt.Errorf("internal error creating reservation: %w", err)
-	}
-
-	return reservationResponse, nil
+	return &entities.StripeSessionResponse{Code: code, URL: sessionURL}, nil
 }
 
 func (s *ReservationService) GetReservationByCode(code, email string) (*entities.ReservationResponse, error) {
@@ -150,19 +143,9 @@ func (s *ReservationService) CancelReservation(code string) error {
 		return fmt.Errorf("Reservations can only be cancelled more than 12 hours before the start time")
 	}
 
-	if reservation.PaymentMethodID == 1 {
-		// Autorizado, pero no capturado: cancelarlo
-		log.Printf("Canceling payment intent: %s", reservation.StripePaymentIntentID)
-		err := s.stripeService.CancelPaymentIntent(reservation.StripePaymentIntentID)
-		if err != nil {
-			return err
-		}
-	} else if reservation.PaymentMethodID == 2 {
-		// Pagado: hacer refund
-		err := s.stripeService.RefundPayment(reservation.StripePaymentIntentID)
-		if err != nil {
-			return err
-		}
+	err = s.stripeService.RefundPayment(reservation.StripePaymentIntentID)
+	if err != nil {
+		return err
 	}
 
 	_, err = s.Repo.CancelReservation(code)
@@ -186,6 +169,37 @@ func (s *ReservationService) GerReservationByPaymentIntentID(paymentIntentID str
 		return nil, err
 	}
 	return reservation, nil
+}
+
+func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entities.ReservationResponse, error) {
+	reservation, err := s.Repo.GetReservationByStripeSessionID(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	resp := &entities.ReservationResponse{
+		Code:          reservation.Code,
+		UserName:      reservation.UserName,
+		UserEmail:     reservation.UserEmail,
+		UserPhone:     reservation.UserPhone,
+		VehicleTypeID: reservation.VehicleTypeID,
+		VehiclePlate:  reservation.VehiclePlate,
+		VehicleModel:  reservation.VehicleModel,
+		Status:        reservation.Status,
+		StartTime:     reservation.StartTime,
+		EndTime:       reservation.EndTime,
+		CreatedAt:     reservation.CreatedAt,
+		UpdatedAt:     reservation.UpdatedAt,
+		PaymentStatus: reservation.PaymentStatus,
+	}
+	return resp, nil
+}
+
+func (s *ReservationService) UpdateReservationAndPaymentStatusBySessionID(sessionID, reservationStatus, paymentStatus string) error {
+	reservation, err := s.Repo.GetReservationByStripeSessionID(sessionID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.UpdateReservationAndPaymentStatus(reservation.ID, reservationStatus, paymentStatus)
 }
 
 func (s *ReservationService) SendReservationEmail(reservation db.Reservation, status string) {
@@ -248,35 +262,25 @@ func (s *ReservationService) SendReservationSMS(reservation db.Reservation, stat
 	}
 }
 
-func (s *ReservationService) handlePaymentIntent(req *entities.ReservationRequest, reservation *db.Reservation) error {
-	var paymentIntent *stripe.PaymentIntent
-	var err error
-
-	if req.PaymentMethodID == 2 { // 2 = online (pay now)
-		paymentIntent, err = s.stripeService.CreatePaymentIntent(int64(req.TotalPrice*100), "eur", reservation.Code)
-		if err != nil {
-			return err
-		}
-	} else if req.PaymentMethodID == 1 { // 1 = onsite (guarantee)
-		paymentIntent, err = s.stripeService.CreatePaymentIntentWithManualCapture(int64(req.TotalPrice*100), "eur", reservation.Code)
-		s.SendReservationEmail(*reservation, confirmed)
-		s.SendReservationSMS(*reservation, confirmed)
-		if err != nil {
-			return err
-		}
+func (s *ReservationService) handlePaymentIntent(req *entities.ReservationRequest, reservation *db.Reservation) (string, error) {
+	var amount int64
+	if req.PaymentMethodID == 2 { // online
+		amount = int64(req.TotalPrice * 100)
+	} else if req.PaymentMethodID == 1 { // onsite
+		amount = int64(float64(req.TotalPrice) * 0.3 * 100)
+	} else {
+		return "", fmt.Errorf("Método de pago no soportado")
 	}
 
-	if paymentIntent != nil {
-		reservation.StripePaymentIntentID = paymentIntent.ID
-		reservation.PaymentStatus = string(paymentIntent.Status)
-		if paymentIntent.Customer != nil {
-			reservation.StripeCustomerID = paymentIntent.Customer.ID
-		}
-		if paymentIntent.PaymentMethod != nil {
-			reservation.StripePaymentMethodID = paymentIntent.PaymentMethod.ID
-		}
+	sessionURL, sessionID, err := s.stripeService.CreateCheckoutSession(amount, "eur", reservation.Code, req.UserEmail)
+	if err != nil {
+		return "", err
 	}
-	return nil
+
+	reservation.StripeSessionID = sessionID
+	reservation.PaymentStatus = statusPending
+
+	return sessionURL, nil
 }
 
 func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, reservationTimeID int) {
@@ -313,4 +317,13 @@ func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, 
 		}
 		return "month", count, 4
 	}
+}
+
+// UpdateReservationAndPaymentStatusByPaymentIntentID permite compatibilidad con refunds legacy (opcional)
+func (s *ReservationService) UpdateReservationAndPaymentStatusByPaymentIntentID(paymentIntentID, reservationStatus, paymentStatus string) error {
+	reservation, err := s.Repo.GetReservationByStripePaymentIntentID(paymentIntentID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.UpdateReservationAndPaymentStatus(reservation.ID, reservationStatus, paymentStatus)
 }

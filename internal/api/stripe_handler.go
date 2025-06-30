@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	active        = "active"
-	canceled      = "canceled"
-	refunded      = "refunded"
-	paymentFailed = "payment_failed"
-	confirmed     = "confirmed"
+	active          = "active"
+	canceled        = "canceled"
+	refunded        = "refunded"
+	confirmed       = "confirmed"
+	statusSucceeded = "succeeded"
 )
 
 type StripeWebhookHandler struct {
@@ -49,22 +49,27 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Manejar eventos de Stripe Checkout
 	switch event.Type {
-	case "payment_intent.succeeded":
-		var pi stripe.PaymentIntent
-		if err := json.Unmarshal(event.Data.Raw, &pi); err != nil {
-			log.Printf("Error parsing payment_intent: %v", err)
+	case "checkout.session.completed":
+		var sess stripe.CheckoutSession
+		if err := json.Unmarshal(event.Data.Raw, &sess); err != nil {
+			log.Printf("Error parsing checkout.session: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(pi.ID, active, string(pi.Status))
-		log.Printf("PaymentIntent succeeded: %s", pi.ID)
+		if sess.ID == "" {
+			log.Printf("No session ID in checkout.session.completed")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		err := h.reservationService.UpdateReservationAndPaymentStatusBySessionID(sess.ID, active, statusSucceeded)
 		if err != nil {
 			log.Printf("DB error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		reservation, err := h.reservationService.GerReservationByPaymentIntentID(pi.ID)
+		reservation, err := h.reservationService.GetReservationBySessionID(sess.ID)
 		if err != nil {
 			log.Printf("DB error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -73,37 +78,37 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 		h.reservationService.SendReservationSMS(*reservation, confirmed)
 		h.reservationService.SendReservationEmail(*reservation, confirmed)
 
-	case "payment_intent.payment_failed":
-		var pi stripe.PaymentIntent
-		json.Unmarshal(event.Data.Raw, &pi)
-		log.Printf("PaymentIntent failed: %s", pi.ID)
-		// Payment failed: (tarjeta vencida o sin fondos)
-		// ver de dar solucion al usuario en este caso, reintentar pago o algo asi.
-		err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(pi.ID, active, paymentFailed)
-		if err != nil {
-			return
-		}
-		// Op 1: dejar la reserva activa avisandole al usuario que debe pagar en el lugar o la puede cancelar.
-		// Msj: Tu pago no se pudo procesar. Podés pagar al llegar al estacionamiento o cancelar sin cargo hasta X horas antes.
-		// Contra: el usuario si no va no tenemos forma de cobrarle.
-		// Op 2: cancelar la reserva avisando al usuario.
-		// Evitamos reserva fantasma.
-		// Op 3: ver si podemos darle la posibilidad de reintentar el pago. Pero tendria que implementar un cron job para cancelarla si pasaron X horas
-
 	case "charge.refunded":
 		var charge stripe.Charge
 		json.Unmarshal(event.Data.Raw, &charge)
 		if charge.PaymentIntent != nil {
+			// Buscar la sesión relacionada si es necesario (puedes guardar el session_id en el metadata del PaymentIntent en el futuro)
+			// Por ahora, puedes buscar la reserva por PaymentIntent solo para refund.
 			log.Printf("Charge refunded for PI %s", charge.PaymentIntent.ID)
-			err := h.reservationService.UpdateReservationAndPaymentStatusByStripeID(charge.PaymentIntent.ID, canceled, refunded)
+			err := h.reservationService.UpdateReservationAndPaymentStatusByPaymentIntentID(charge.PaymentIntent.ID, canceled, refunded)
 			if err != nil {
 				return
 			}
 		}
-
 	default:
 		log.Printf("Unhandled event type: %s", event.Type)
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// GetReservationBySessionIDHandler maneja GET /api/reservation/by-session?session_id=...
+func (h *StripeWebhookHandler) GetReservationBySessionIDHandler(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		http.Error(w, "session_id required", http.StatusBadRequest)
+		return
+	}
+	reservation, err := h.reservationService.GetReservationBySessionID(sessionID)
+	if err != nil {
+		http.Error(w, "Reservation not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(reservation)
 }

@@ -162,7 +162,7 @@ func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTi
 func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 	query := `
 		INSERT INTO reservations
-		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_customer_id, stripe_payment_intent_id, stripe_setup_intent_id, stripe_payment_method_id, payment_status)
+		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_session_id, payment_status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING id, created_at, updated_at`
 	return r.DB.QueryRow(query,
@@ -179,10 +179,7 @@ func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 		res.EndTime,
 		res.CreatedAt,
 		res.UpdatedAt,
-		res.StripeCustomerID,
-		res.StripePaymentIntentID,
-		res.StripeSetupIntentID,
-		res.StripePaymentMethodID,
+		res.StripeSessionID,
 		res.PaymentStatus,
 	).Scan(&res.ID, &res.CreatedAt, &res.UpdatedAt)
 }
@@ -195,7 +192,7 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
             r.code, r.user_name, r.user_email, r.user_phone,
             r.vehicle_type_id, vt.name AS vehicle_type_name,
             r.vehicle_plate, r.vehicle_model,
-            r.payment_method_id, pm.name AS payment_method_name, r.stripe_payment_intent_id, r.payment_status,
+            r.payment_method_id, pm.name AS payment_method_name, r.stripe_session_id, r.payment_status,
             r.status, r.start_time, r.end_time, r.created_at, r.updated_at
         FROM reservations r
         JOIN vehicle_types vt ON r.vehicle_type_id = vt.id
@@ -207,7 +204,7 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
 		&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
 		&res.VehicleTypeID, &res.VehicleTypeName,
 		&res.VehiclePlate, &res.VehicleModel,
-		&res.PaymentMethodID, &res.PaymentMethodName, &res.PaymentIntentClientSecret, &res.PaymentStatus,
+		&res.PaymentMethodID, &res.PaymentMethodName, &res.StripeSessionID, &res.PaymentStatus,
 		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
 	)
 
@@ -239,10 +236,10 @@ func (r *ReservationRepository) CancelReservation(code string) (string, error) {
 func (r *ReservationRepository) GetReservationByCodeOnly(code string) (*db.Reservation, error) {
 	var res db.Reservation
 	query := `
-		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_customer_id, stripe_payment_intent_id, stripe_setup_intent_id, stripe_payment_method_id, payment_status
+		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_session_id, payment_status
 		FROM reservations WHERE code = $1`
 	err := r.DB.QueryRow(query, code).Scan(
-		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.StripeCustomerID, &res.StripePaymentIntentID, &res.StripeSetupIntentID, &res.StripePaymentMethodID, &res.PaymentStatus,
+		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.StripeSessionID, &res.PaymentStatus,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -256,14 +253,31 @@ func (r *ReservationRepository) GetReservationByCodeOnly(code string) (*db.Reser
 func (r *ReservationRepository) GetReservationByStripePaymentIntentID(paymentIntentID string) (*db.Reservation, error) {
 	var res db.Reservation
 	query := `
-		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_customer_id, stripe_payment_intent_id, stripe_setup_intent_id, stripe_payment_method_id, payment_status
+		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_session_id, payment_status
 		FROM reservations WHERE stripe_payment_intent_id = $1`
 	err := r.DB.QueryRow(query, paymentIntentID).Scan(
-		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.StripeCustomerID, &res.StripePaymentIntentID, &res.StripeSetupIntentID, &res.StripePaymentMethodID, &res.PaymentStatus,
+		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.StripeSessionID, &res.PaymentStatus,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("reservation with paymentIntentID '%s' not found: %w", paymentIntentID, err)
+		}
+		return nil, fmt.Errorf("error querying reservation: %w", err)
+	}
+	return &res, nil
+}
+
+func (r *ReservationRepository) GetReservationByStripeSessionID(sessionID string) (*db.Reservation, error) {
+	var res db.Reservation
+	query := `
+		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_session_id, payment_status
+		FROM reservations WHERE stripe_session_id = $1`
+	err := r.DB.QueryRow(query, sessionID).Scan(
+		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.StripeSessionID, &res.PaymentStatus,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("reservation with sessionID '%s' not found: %w", sessionID, err)
 		}
 		return nil, fmt.Errorf("error querying reservation: %w", err)
 	}
