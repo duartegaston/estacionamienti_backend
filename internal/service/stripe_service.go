@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/checkout/session"
 	"github.com/stripe/stripe-go/v82/refund"
@@ -12,12 +13,18 @@ func NewStripeService() *StripeService {
 	return &StripeService{}
 }
 
-// Refund payment
-func (s *StripeService) RefundPayment(paymentIntentID string) error {
-	params := &stripe.RefundParams{
-		PaymentIntent: stripe.String(paymentIntentID),
+func (s *StripeService) RefundPaymentBySessionID(sessionID string) error {
+	sess, err := session.Get(sessionID, nil)
+	if err != nil {
+		return err
 	}
-	_, err := refund.New(params)
+	if sess.PaymentIntent == nil || sess.PaymentIntent.ID == "" {
+		return fmt.Errorf("No PaymentIntent found for session %s", sessionID)
+	}
+	params := &stripe.RefundParams{
+		PaymentIntent: stripe.String(sess.PaymentIntent.ID),
+	}
+	_, err = refund.New(params)
 	return err
 }
 

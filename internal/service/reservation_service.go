@@ -6,6 +6,8 @@ import (
 	"estacionamienti/internal/entities"
 	"estacionamienti/internal/repository"
 	"fmt"
+	"github.com/stripe/stripe-go/v82"
+	"github.com/stripe/stripe-go/v82/checkout/session"
 	"html/template"
 	"log"
 	"path/filepath"
@@ -13,12 +15,8 @@ import (
 )
 
 const (
-	statusActive          = "active"
-	statusPending         = "pending"
-	confirmed             = "confirmed"
-	statusRequiresCapture = "requires_capture"
-	statusSucceeded       = "succeeded"
-	statusCancel          = "canceled"
+	statusPending = "pending"
+	statusCancel  = "canceled"
 )
 
 type ReservationService struct {
@@ -124,7 +122,10 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		return nil, err
 	}
 
-	return &entities.StripeSessionResponse{Code: code, URL: sessionURL}, nil
+	return &entities.StripeSessionResponse{
+		Code:      code,
+		URL:       sessionURL,
+		SessionID: reservation.StripeSessionID}, nil
 }
 
 func (s *ReservationService) GetReservationByCode(code, email string) (*entities.ReservationResponse, error) {
@@ -136,6 +137,14 @@ func (s *ReservationService) CancelReservation(code string) error {
 	if err != nil {
 		return err
 	}
+	sessionID := reservation.StripeSessionID
+	if sessionID == "" {
+		return fmt.Errorf("No Stripe session ID found for reservation code: %s", code)
+	}
+	reservationResp, err := s.GetReservationBySessionID(sessionID)
+	if err != nil {
+		return err
+	}
 
 	currentTime := time.Now().UTC()
 	if reservation.StartTime.Sub(currentTime) < 12*time.Hour {
@@ -143,32 +152,16 @@ func (s *ReservationService) CancelReservation(code string) error {
 		return fmt.Errorf("Reservations can only be cancelled more than 12 hours before the start time")
 	}
 
-	err = s.stripeService.RefundPayment(reservation.StripePaymentIntentID)
+	err = s.stripeService.RefundPaymentBySessionID(reservation.StripeSessionID)
 	if err != nil {
 		return err
 	}
 
 	_, err = s.Repo.CancelReservation(code)
 
-	s.SendReservationSMS(*reservation, statusCancel)
-	s.SendReservationEmail(*reservation, statusCancel)
+	s.SendReservationSMS(*reservationResp, statusCancel)
+	s.SendReservationEmail(*reservationResp, statusCancel)
 	return err
-}
-
-func (s *ReservationService) UpdateReservationAndPaymentStatusByStripeID(paymentIntentID, reservationStatus, paymentStatus string) error {
-	reservation, err := s.Repo.GetReservationByStripePaymentIntentID(paymentIntentID)
-	if err != nil {
-		return err
-	}
-	return s.Repo.UpdateReservationAndPaymentStatus(reservation.ID, reservationStatus, paymentStatus)
-}
-
-func (s *ReservationService) GerReservationByPaymentIntentID(paymentIntentID string) (*db.Reservation, error) {
-	reservation, err := s.Repo.GetReservationByStripePaymentIntentID(paymentIntentID)
-	if err != nil {
-		return nil, err
-	}
-	return reservation, nil
 }
 
 func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entities.ReservationResponse, error) {
@@ -202,7 +195,23 @@ func (s *ReservationService) UpdateReservationAndPaymentStatusBySessionID(sessio
 	return s.Repo.UpdateReservationAndPaymentStatus(reservation.ID, reservationStatus, paymentStatus)
 }
 
-func (s *ReservationService) SendReservationEmail(reservation db.Reservation, status string) {
+// GetSessionIDByPaymentIntentID busca el session_id en Stripe a partir de un PaymentIntentID
+func (s *ReservationService) GetSessionIDByPaymentIntentID(paymentIntentID string) (string, error) {
+	params := &stripe.CheckoutSessionListParams{
+		PaymentIntent: &paymentIntentID,
+	}
+	params.Limit = stripe.Int64(1)
+	it := session.List(params)
+	for it.Next() {
+		sess := it.CheckoutSession()
+		if sess != nil && sess.ID != "" {
+			return sess.ID, nil
+		}
+	}
+	return "", fmt.Errorf("No session_id found for PaymentIntentID %s", paymentIntentID)
+}
+
+func (s *ReservationService) SendReservationEmail(reservation entities.ReservationResponse, status string) {
 	emailData := entities.ReservationEmailData{
 		UserName:           reservation.UserName,
 		ReservationCode:    reservation.Code,
@@ -248,7 +257,7 @@ func (s *ReservationService) SendReservationEmail(reservation db.Reservation, st
 	}(reservation.UserEmail, emailData.UserName, emailSubject, plainTextBody, htmlBody)
 }
 
-func (s *ReservationService) SendReservationSMS(reservation db.Reservation, status string) {
+func (s *ReservationService) SendReservationSMS(reservation entities.ReservationResponse, status string) {
 	userPhoneNumber := reservation.UserPhone
 	reservationCode := reservation.Code
 	smsMessage := fmt.Sprintf("GreenParking: Reservation %s has been %s!\nCheck-in: %s.\nMore details in your email.",
@@ -317,13 +326,4 @@ func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, 
 		}
 		return "month", count, 4
 	}
-}
-
-// UpdateReservationAndPaymentStatusByPaymentIntentID permite compatibilidad con refunds legacy (opcional)
-func (s *ReservationService) UpdateReservationAndPaymentStatusByPaymentIntentID(paymentIntentID, reservationStatus, paymentStatus string) error {
-	reservation, err := s.Repo.GetReservationByStripePaymentIntentID(paymentIntentID)
-	if err != nil {
-		return err
-	}
-	return s.Repo.UpdateReservationAndPaymentStatus(reservation.ID, reservationStatus, paymentStatus)
 }

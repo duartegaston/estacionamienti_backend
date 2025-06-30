@@ -81,12 +81,16 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 	case "charge.refunded":
 		var charge stripe.Charge
 		json.Unmarshal(event.Data.Raw, &charge)
-		if charge.PaymentIntent != nil {
-			// Buscar la sesión relacionada si es necesario (puedes guardar el session_id en el metadata del PaymentIntent en el futuro)
-			// Por ahora, puedes buscar la reserva por PaymentIntent solo para refund.
-			log.Printf("Charge refunded for PI %s", charge.PaymentIntent.ID)
-			err := h.reservationService.UpdateReservationAndPaymentStatusByPaymentIntentID(charge.PaymentIntent.ID, canceled, refunded)
+		if charge.PaymentIntent != nil && charge.PaymentIntent.ID != "" {
+			// Recuperar el session_id desde Stripe usando el PaymentIntent
+			si, err := h.reservationService.GetSessionIDByPaymentIntentID(charge.PaymentIntent.ID)
 			if err != nil {
+				log.Printf("No session_id found for PaymentIntent %s: %v", charge.PaymentIntent.ID, err)
+				return
+			}
+			err = h.reservationService.UpdateReservationAndPaymentStatusBySessionID(si, canceled, refunded)
+			if err != nil {
+				log.Printf("DB error: %v", err)
 				return
 			}
 		}
@@ -96,8 +100,6 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 
 	w.WriteHeader(http.StatusOK)
 }
-
-// GetReservationBySessionIDHandler maneja GET /api/reservation/by-session?session_id=...
 func (h *StripeWebhookHandler) GetReservationBySessionIDHandler(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID == "" {
