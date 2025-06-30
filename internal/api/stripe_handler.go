@@ -82,7 +82,6 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 		var charge stripe.Charge
 		json.Unmarshal(event.Data.Raw, &charge)
 		if charge.PaymentIntent != nil && charge.PaymentIntent.ID != "" {
-			// Recuperar el session_id desde Stripe usando el PaymentIntent
 			si, err := h.reservationService.GetSessionIDByPaymentIntentID(charge.PaymentIntent.ID)
 			if err != nil {
 				log.Printf("No session_id found for PaymentIntent %s: %v", charge.PaymentIntent.ID, err)
