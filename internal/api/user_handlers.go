@@ -173,14 +173,14 @@ func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *htt
 
 func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
-	var req struct {
-		Email string `json:"email"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+
+	email := r.URL.Query().Get("email")
+	if email == "" {
+		http.Error(w, "Missing email query parameter", http.StatusBadRequest)
 		return
 	}
-	res, err := h.Service.GetReservationByCode(code, req.Email)
+
+	res, err := h.Service.GetReservationByCode(code, email)
 	if err != nil {
 		http.Error(w, "Get reservation not found", http.StatusNotFound)
 		return

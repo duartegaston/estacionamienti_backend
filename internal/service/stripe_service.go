@@ -46,9 +46,8 @@ func (s *StripeService) CreateCheckoutSession(amount int64, currency, descriptio
 		},
 		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
 		//TODO: modificar urls
-		SuccessURL:    stripe.String("localhost:3000/confirmacion?session_id={CHECKOUT_SESSION_ID}"),
-		CancelURL:     stripe.String("localhost:3000//cancelada"),
-		ReturnURL:     stripe.String(""),
+		SuccessURL:    stripe.String("http://localhost:3000/en/reservations/create/confirmation/?session_id={CHECKOUT_SESSION_ID}"),
+		CancelURL:     stripe.String("http://localhost:3000/en/reservations/create/failed/session_id={CHECKOUT_SESSION_ID}"),
 		CustomerEmail: stripe.String(customerEmail),
 	}
 
