@@ -107,6 +107,7 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		Status:          statusPending,
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
+		Language:        req.Language,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
@@ -121,6 +122,11 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		log.Printf("Error creating reservation in repository: %v", err)
 		return nil, err
 	}
+
+	reservationResp, _ := s.GetReservationByCode(code, req.UserEmail)
+	statusTraducido := statusTranslation(statusPending, reservationResp.Language)
+	s.SendReservationSMS(*reservationResp, statusTraducido)
+	s.SendReservationEmail(*reservationResp, statusTraducido)
 
 	return &entities.StripeSessionResponse{
 		Code:      code,
@@ -159,8 +165,9 @@ func (s *ReservationService) CancelReservation(code string) error {
 
 	_, err = s.Repo.CancelReservation(code)
 
-	s.SendReservationSMS(*reservationResp, statusCancel)
-	s.SendReservationEmail(*reservationResp, statusCancel)
+	statusTraducido := statusTranslation(statusCancel, reservationResp.Language)
+	s.SendReservationSMS(*reservationResp, statusTraducido)
+	s.SendReservationEmail(*reservationResp, statusTraducido)
 	return err
 }
 
@@ -183,6 +190,7 @@ func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entit
 		CreatedAt:     reservation.CreatedAt,
 		UpdatedAt:     reservation.UpdatedAt,
 		PaymentStatus: reservation.PaymentStatus,
+		Language:      reservation.Language,
 	}
 	return resp, nil
 }
@@ -220,22 +228,55 @@ func (s *ReservationService) SendReservationEmail(reservation entities.Reservati
 		StartTimeFormatted: reservation.StartTime.Format("02 Jan 2006 15:04 MST"),
 		EndTimeFormatted:   reservation.EndTime.Format("02 Jan 2006 15:04 MST"),
 		CurrentYear:        time.Now().Year(),
+		Language:           reservation.Language,
+		Status:             status,
 	}
 
-	emailSubject := fmt.Sprintf("Your GreenParking reservation %s - Code: %s", status, emailData.ReservationCode)
-
-	plainTextBody := fmt.Sprintf(
-		"Hello %s,\n\nYour reservation at GreenPark has been %s.\n\n"+
-			"Reservation Details:\n"+
-			"Reservation Code: %s\n"+
-			"Vehicle: %s (Plate: %s)\n"+
-			"Check-in: %s\n"+
-			"Check-out: %s\n\n"+
-			"Thank you for choosing GreenParking.\n\n"+
-			" GreenParking. All rights reserved.",
-		emailData.UserName, status, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
-		emailData.StartTimeFormatted, emailData.EndTimeFormatted, emailData.CurrentYear,
-	)
+	var emailSubject, plainTextBody string
+	switch reservation.Language {
+	case "es":
+		emailSubject = fmt.Sprintf("Tu reserva en GreenParking está %s - Código: %s", status, emailData.ReservationCode)
+		plainTextBody = fmt.Sprintf(
+			"Hola %s,\n\nTu reserva en GreenParking está %s.\n\n"+
+				"Detalles de la reserva:\n"+
+				"Código de Reserva: %s\n"+
+				"Vehículo: %s (Patente: %s)\n"+
+				"Check-in: %s\n"+
+				"Check-out: %s\n\n"+
+				"Gracias por elegir GreenParking.\n\n"+
+				"GreenParking. Todos los derechos reservados.",
+			emailData.UserName, status, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
+			emailData.StartTimeFormatted, emailData.EndTimeFormatted, emailData.CurrentYear,
+		)
+	case "it":
+		emailSubject = fmt.Sprintf("La tua prenotazione GreenParking è %s - Codice: %s", status, emailData.ReservationCode)
+		plainTextBody = fmt.Sprintf(
+			"Ciao %s,\n\nLa tua prenotazione presso GreenParking è %s.\n\n"+
+				"Dettagli della prenotazione:\n"+
+				"Codice prenotazione: %s\n"+
+				"Veicolo: %s (Targa: %s)\n"+
+				"Check-in: %s\n"+
+				"Check-out: %s\n\n"+
+				"Grazie per aver scelto GreenParking.\n\n"+
+				"GreenParking. Tutti i diritti riservati.",
+			emailData.UserName, status, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
+			emailData.StartTimeFormatted, emailData.EndTimeFormatted, emailData.CurrentYear,
+		)
+	default:
+		emailSubject = fmt.Sprintf("Your GreenParking reservation is %s - Code: %s", status, emailData.ReservationCode)
+		plainTextBody = fmt.Sprintf(
+			"Hello %s,\n\nYour reservation at GreenPark is %s.\n\n"+
+				"Reservation Details:\n"+
+				"Reservation Code: %s\n"+
+				"Vehicle: %s (Plate: %s)\n"+
+				"Check-in: %s\n"+
+				"Check-out: %s\n\n"+
+				"Thank you for choosing GreenParking.\n\n"+
+				"GreenParking. All rights reserved.",
+			emailData.UserName, status, emailData.ReservationCode, emailData.VehicleModel, emailData.VehiclePlate,
+			emailData.StartTimeFormatted, emailData.EndTimeFormatted, emailData.CurrentYear,
+		)
+	}
 
 	tmplPath := filepath.Join("internal", "templates", "reservation_email.html")
 	tmpl, err := template.ParseFiles(tmplPath)
@@ -260,10 +301,25 @@ func (s *ReservationService) SendReservationEmail(reservation entities.Reservati
 func (s *ReservationService) SendReservationSMS(reservation entities.ReservationResponse, status string) {
 	userPhoneNumber := reservation.UserPhone
 	reservationCode := reservation.Code
-	smsMessage := fmt.Sprintf("GreenParking: Reservation %s has been %s!\nCheck-in: %s.\nMore details in your email.",
-		reservationCode, status,
-		reservation.StartTime.Format("02/01 15:04"),
-	)
+
+	var smsMessage string
+	switch reservation.Language {
+	case "es":
+		smsMessage = fmt.Sprintf("GreenParking: ¡Tu reserva %s está %s!\nCheck-in: %s.\nMás detalles en tu correo.",
+			reservationCode, status,
+			reservation.StartTime.Format("02/01 15:04"),
+		)
+	case "it":
+		smsMessage = fmt.Sprintf("GreenParking: La tua prenotazione %s è stata %s!\nCheck-in: %s.\nAltri dettagli nella tua email.",
+			reservationCode, status,
+			reservation.StartTime.Format("02/01 15:04"),
+		)
+	default:
+		smsMessage = fmt.Sprintf("GreenParking: Reservation %s has been %s!\nCheck-in: %s.\nMore details in your email.",
+			reservationCode, status,
+			reservation.StartTime.Format("02/01 15:04"),
+		)
+	}
 
 	errSMS := SendSMS(userPhoneNumber, smsMessage)
 	if errSMS != nil {
@@ -281,7 +337,7 @@ func (s *ReservationService) handlePaymentIntent(req *entities.ReservationReques
 		return "", fmt.Errorf("Método de pago no soportado")
 	}
 
-	sessionURL, sessionID, err := s.stripeService.CreateCheckoutSession(amount, "eur", reservation.Code, req.UserEmail)
+	sessionURL, sessionID, err := s.stripeService.CreateCheckoutSession(amount, "eur", reservation.Code, req.UserEmail, reservation.Language)
 	if err != nil {
 		return "", err
 	}
@@ -326,4 +382,34 @@ func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, 
 		}
 		return "month", count, 4
 	}
+}
+
+// statusTranslation traduce el status según idioma.
+func statusTranslation(status, lang string) string {
+	switch lang {
+	case "es":
+		switch status {
+		case "pending":
+			return "pendiente"
+		case "active":
+			return "activa"
+		case "finished":
+			return "finalizada"
+		case "canceled", "cancelled":
+			return "cancelada"
+		}
+	case "it":
+		switch status {
+		case "pending":
+			return "in attesa"
+		case "active":
+			return "attiva"
+		case "finished":
+			return "finito"
+		case "canceled", "cancelled":
+			return "annullata"
+		}
+	}
+	// Default: English
+	return status
 }

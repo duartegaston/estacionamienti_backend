@@ -8,4 +8,6 @@ type ReservationEmailData struct {
 	StartTimeFormatted string
 	EndTimeFormatted   string
 	CurrentYear        int
+	Language           string
+	Status             string
 }

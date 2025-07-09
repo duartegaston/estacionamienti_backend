@@ -50,4 +50,5 @@ type Reservation struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 	StripeSessionID string    `json:"stripe_session_id,omitempty"`
 	PaymentStatus   string    `json:"payment_status,omitempty"`
+	Language        string    `json:"language"`
 }

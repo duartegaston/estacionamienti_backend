@@ -29,7 +29,7 @@ func (s *StripeService) RefundPaymentBySessionID(sessionID string) error {
 }
 
 // Create checkout session
-func (s *StripeService) CreateCheckoutSession(amount int64, currency, description, customerEmail string) (string, string, error) {
+func (s *StripeService) CreateCheckoutSession(amount int64, currency, description, customerEmail string, language string) (string, string, error) {
 	params := &stripe.CheckoutSessionParams{
 		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
@@ -46,8 +46,8 @@ func (s *StripeService) CreateCheckoutSession(amount int64, currency, descriptio
 		},
 		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
 		//TODO: modificar urls
-		SuccessURL:    stripe.String("http://localhost:3000/en/reservations/create/confirmation/?session_id={CHECKOUT_SESSION_ID}"),
-		CancelURL:     stripe.String("http://localhost:3000/en/reservations/create/failed"),
+		SuccessURL:    stripe.String("http://localhost:3000/" + language + "/reservations/create/confirmation/?session_id={CHECKOUT_SESSION_ID}"),
+		CancelURL:     stripe.String("http://localhost:3000/" + language + "/reservations/create/failed"),
 		CustomerEmail: stripe.String(customerEmail),
 	}
 
