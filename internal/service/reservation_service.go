@@ -123,11 +123,6 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		return nil, err
 	}
 
-	reservationResp, _ := s.GetReservationByCode(code, req.UserEmail)
-	statusTraducido := statusTranslation(statusPending, reservationResp.Language)
-	s.SendReservationSMS(*reservationResp, statusTraducido)
-	s.SendReservationEmail(*reservationResp, statusTraducido)
-
 	return &entities.StripeSessionResponse{
 		Code:      code,
 		URL:       sessionURL,
@@ -220,14 +215,19 @@ func (s *ReservationService) GetSessionIDByPaymentIntentID(paymentIntentID strin
 }
 
 func (s *ReservationService) SendReservationEmail(reservation entities.ReservationResponse, status string) {
+	italyLoc, errLoc := time.LoadLocation("Europe/Rome")
+	if errLoc != nil {
+		italyLoc = time.FixedZone("CET", 1*60*60) // fallback CET
+	}
+
 	emailData := entities.ReservationEmailData{
 		UserName:           reservation.UserName,
 		ReservationCode:    reservation.Code,
 		VehicleModel:       reservation.VehicleModel,
 		VehiclePlate:       reservation.VehiclePlate,
-		StartTimeFormatted: reservation.StartTime.Format("02 Jan 2006 15:04 MST"),
-		EndTimeFormatted:   reservation.EndTime.Format("02 Jan 2006 15:04 MST"),
-		CurrentYear:        time.Now().Year(),
+		StartTimeFormatted: reservation.StartTime.In(italyLoc).Format("02 Jan 2006 15:04 MST"),
+		EndTimeFormatted:   reservation.EndTime.In(italyLoc).Format("02 Jan 2006 15:04 MST"),
+		CurrentYear:        time.Now().In(italyLoc).Year(),
 		Language:           reservation.Language,
 		Status:             status,
 	}
@@ -299,6 +299,11 @@ func (s *ReservationService) SendReservationEmail(reservation entities.Reservati
 }
 
 func (s *ReservationService) SendReservationSMS(reservation entities.ReservationResponse, status string) {
+	italyLoc, errLoc := time.LoadLocation("Europe/Rome")
+	if errLoc != nil {
+		italyLoc = time.FixedZone("CET", 1*60*60)
+	}
+
 	userPhoneNumber := reservation.UserPhone
 	reservationCode := reservation.Code
 
@@ -307,17 +312,17 @@ func (s *ReservationService) SendReservationSMS(reservation entities.Reservation
 	case "es":
 		smsMessage = fmt.Sprintf("GreenParking: ¡Tu reserva %s está %s!\nCheck-in: %s.\nMás detalles en tu correo.",
 			reservationCode, status,
-			reservation.StartTime.Format("02/01 15:04"),
+			reservation.StartTime.In(italyLoc).Format("02/01 15:04"),
 		)
 	case "it":
 		smsMessage = fmt.Sprintf("GreenParking: La tua prenotazione %s è stata %s!\nCheck-in: %s.\nAltri dettagli nella tua email.",
 			reservationCode, status,
-			reservation.StartTime.Format("02/01 15:04"),
+			reservation.StartTime.In(italyLoc).Format("02/01 15:04"),
 		)
 	default:
 		smsMessage = fmt.Sprintf("GreenParking: Reservation %s has been %s!\nCheck-in: %s.\nMore details in your email.",
 			reservationCode, status,
-			reservation.StartTime.Format("02/01 15:04"),
+			reservation.StartTime.In(italyLoc).Format("02/01 15:04"),
 		)
 	}
 
