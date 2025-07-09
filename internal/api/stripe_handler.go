@@ -63,7 +63,11 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		err := h.reservationService.UpdateReservationAndPaymentStatusBySessionID(sess.ID, active, statusSucceeded)
+		paymentIntentID := ""
+		if sess.PaymentIntent != nil {
+			paymentIntentID = sess.PaymentIntent.ID
+		}
+		err := h.reservationService.UpdateReservationStatusPaymentAndIntentBySessionID(sess.ID, active, statusSucceeded, paymentIntentID)
 		if err != nil {
 			log.Printf("DB error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -75,8 +79,9 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		h.reservationService.SendReservationSMS(*reservation, confirmed)
-		h.reservationService.SendReservationEmail(*reservation, confirmed)
+		statusTraducido := h.reservationService.StatusTranslation(confirmed, reservation.Language)
+		h.reservationService.SendReservationSMS(*reservation, statusTraducido)
+		h.reservationService.SendReservationEmail(*reservation, statusTraducido)
 
 	case "charge.refunded":
 		var charge stripe.Charge

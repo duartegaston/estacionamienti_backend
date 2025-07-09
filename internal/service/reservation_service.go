@@ -138,6 +138,7 @@ func (s *ReservationService) CancelReservation(code string) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Canceling reservation with code: %s", code)
 	sessionID := reservation.StripeSessionID
 	if sessionID == "" {
 		return fmt.Errorf("No Stripe session ID found for reservation code: %s", code)
@@ -146,6 +147,7 @@ func (s *ReservationService) CancelReservation(code string) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("reservationResp: %v", reservationResp)
 
 	currentTime := time.Now().UTC()
 	if reservation.StartTime.Sub(currentTime) < 12*time.Hour {
@@ -160,7 +162,7 @@ func (s *ReservationService) CancelReservation(code string) error {
 
 	_, err = s.Repo.CancelReservation(code)
 
-	statusTraducido := statusTranslation(statusCancel, reservationResp.Language)
+	statusTraducido := s.StatusTranslation(statusCancel, reservationResp.Language)
 	s.SendReservationSMS(*reservationResp, statusTraducido)
 	s.SendReservationEmail(*reservationResp, statusTraducido)
 	return err
@@ -196,6 +198,14 @@ func (s *ReservationService) UpdateReservationAndPaymentStatusBySessionID(sessio
 		return err
 	}
 	return s.Repo.UpdateReservationAndPaymentStatus(reservation.ID, reservationStatus, paymentStatus)
+}
+
+func (s *ReservationService) UpdateReservationStatusPaymentAndIntentBySessionID(sessionID, reservationStatus, paymentStatus, paymentIntentID string) error {
+	reservation, err := s.Repo.GetReservationByStripeSessionID(sessionID)
+	if err != nil {
+		return err
+	}
+	return s.Repo.UpdateReservationStatusPaymentAndIntent(reservation.ID, reservationStatus, paymentStatus, paymentIntentID)
 }
 
 // GetSessionIDByPaymentIntentID busca el session_id en Stripe a partir de un PaymentIntentID
@@ -332,6 +342,40 @@ func (s *ReservationService) SendReservationSMS(reservation entities.Reservation
 	}
 }
 
+// statusTranslation traduce el status según idioma.
+func (s *ReservationService) StatusTranslation(status, lang string) string {
+	switch lang {
+	case "es":
+		switch status {
+		case "pending":
+			return "pendiente"
+		case "active":
+			return "activa"
+		case "finished":
+			return "finalizada"
+		case "canceled", "cancelled":
+			return "cancelada"
+		case "confirmed":
+			return "confirmada"
+		}
+	case "it":
+		switch status {
+		case "pending":
+			return "in attesa"
+		case "active":
+			return "attiva"
+		case "finished":
+			return "finito"
+		case "canceled", "cancelled":
+			return "annullata"
+		case "confirmed":
+			return "confermata"
+		}
+	}
+	// Default: English
+	return status
+}
+
 func (s *ReservationService) handlePaymentIntent(req *entities.ReservationRequest, reservation *db.Reservation) (string, error) {
 	var amount int64
 	if req.PaymentMethodID == 2 { // online
@@ -387,34 +431,4 @@ func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, 
 		}
 		return "month", count, 4
 	}
-}
-
-// statusTranslation traduce el status según idioma.
-func statusTranslation(status, lang string) string {
-	switch lang {
-	case "es":
-		switch status {
-		case "pending":
-			return "pendiente"
-		case "active":
-			return "activa"
-		case "finished":
-			return "finalizada"
-		case "canceled", "cancelled":
-			return "cancelada"
-		}
-	case "it":
-		switch status {
-		case "pending":
-			return "in attesa"
-		case "active":
-			return "attiva"
-		case "finished":
-			return "finito"
-		case "canceled", "cancelled":
-			return "annullata"
-		}
-	}
-	// Default: English
-	return status
 }

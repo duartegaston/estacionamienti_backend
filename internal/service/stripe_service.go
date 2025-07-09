@@ -1,28 +1,34 @@
 package service
 
 import (
+	"estacionamienti/internal/repository"
 	"fmt"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/checkout/session"
 	"github.com/stripe/stripe-go/v82/refund"
+	"log"
 )
 
-type StripeService struct{}
+type StripeService struct {
+	Repo *repository.ReservationRepository
+}
 
-func NewStripeService() *StripeService {
-	return &StripeService{}
+func NewStripeService(Repo *repository.ReservationRepository) *StripeService {
+	return &StripeService{Repo: Repo}
 }
 
 func (s *StripeService) RefundPaymentBySessionID(sessionID string) error {
-	sess, err := session.Get(sessionID, nil)
+	reservation, err := s.Repo.GetReservationByStripeSessionID(sessionID)
 	if err != nil {
 		return err
 	}
-	if sess.PaymentIntent == nil || sess.PaymentIntent.ID == "" {
+	log.Printf("reservation: %v", reservation)
+	if reservation.StripePaymentIntentID == "" {
 		return fmt.Errorf("No PaymentIntent found for session %s", sessionID)
 	}
+	log.Printf("Refunding payment for session %s", sessionID)
 	params := &stripe.RefundParams{
-		PaymentIntent: stripe.String(sess.PaymentIntent.ID),
+		PaymentIntent: stripe.String(reservation.StripePaymentIntentID),
 	}
 	_, err = refund.New(params)
 	return err

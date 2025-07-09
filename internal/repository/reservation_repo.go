@@ -253,17 +253,24 @@ func (r *ReservationRepository) GetReservationByCodeOnly(code string) (*db.Reser
 
 func (r *ReservationRepository) GetReservationByStripeSessionID(sessionID string) (*db.Reservation, error) {
 	var res db.Reservation
+	var paymentIntentID sql.NullString
 	query := `
-		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_session_id, payment_status, language
+		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_session_id, payment_status, language, stripe_payment_intent_id
+
 		FROM reservations WHERE stripe_session_id = $1`
 	err := r.DB.QueryRow(query, sessionID).Scan(
 		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt,
-		&res.UpdatedAt, &res.StripeSessionID, &res.PaymentStatus, &res.Language)
+		&res.UpdatedAt, &res.StripeSessionID, &res.PaymentStatus, &res.Language, &paymentIntentID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("reservation with sessionID '%s' not found: %w", sessionID, err)
 		}
 		return nil, fmt.Errorf("error querying reservation: %w", err)
+	}
+	if paymentIntentID.Valid {
+		res.StripePaymentIntentID = paymentIntentID.String
+	} else {
+		res.StripePaymentIntentID = ""
 	}
 	return &res, nil
 }
@@ -274,5 +281,14 @@ func (r *ReservationRepository) UpdateReservationAndPaymentStatus(reservationID 
 		SET payment_status = $1, status = $2, updated_at = NOW()
 		WHERE id = $3`
 	_, err := r.DB.Exec(query, paymentStatus, reservationStatus, reservationID)
+	return err
+}
+
+func (r *ReservationRepository) UpdateReservationStatusPaymentAndIntent(reservationID int, reservationStatus, paymentStatus, paymentIntentID string) error {
+	query := `
+		UPDATE reservations
+		SET payment_status = $1, status = $2, stripe_payment_intent_id = $3, updated_at = NOW()
+		WHERE id = $4`
+	_, err := r.DB.Exec(query, paymentStatus, reservationStatus, paymentIntentID, reservationID)
 	return err
 }

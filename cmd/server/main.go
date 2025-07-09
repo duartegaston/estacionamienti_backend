@@ -56,7 +56,7 @@ func main() {
 	adminAuthRepo := repository.NewAdminAuthRepository(db)
 
 	// Services
-	stripeSvc := service.NewStripeService()
+	stripeSvc := service.NewStripeService(reservationRepo)
 	reservationSvc := service.NewReservationService(reservationRepo, stripeSvc)
 	jobSvc := service.NewJobService(jobRepo)
 	adminSvc := service.NewAdminService(adminRepo, reservationRepo, stripeSvc)
