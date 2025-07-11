@@ -38,7 +38,6 @@ CREATE TABLE payment_method (
     name VARCHAR(50) UNIQUE NOT NULL -- on site or online
 );
 
-
 -- Tabla de reservas
 CREATE TABLE reservations (
     id SERIAL PRIMARY KEY,
@@ -55,11 +54,10 @@ CREATE TABLE reservations (
     end_time TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
-        stripe_customer_id VARCHAR(255),
-        stripe_payment_intent_id VARCHAR(255),
-        stripe_setup_intent_id VARCHAR(255),
-        stripe_payment_method_id VARCHAR(255),
-        payment_status VARCHAR(255)
+    payment_status VARCHAR(50),
+    stripe_session_id VARCHAR(255),
+    stripe_payment_intent_id VARCHAR(255),
+    language VARCHAR(20)
 );
 
 INSERT INTO vehicle_types (name) VALUES ('car'), ('motorcycle'), ('suv');
