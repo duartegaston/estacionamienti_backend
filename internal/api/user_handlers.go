@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"estacionamienti/internal/entities"
+	"estacionamienti/internal/errors"
 	"estacionamienti/internal/service"
 	"fmt"
 	"log"
@@ -24,6 +25,10 @@ func NewUserReservationHandler(svc *service.ReservationService) *UserReservation
 func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Request) {
 	res, err := h.Service.GetPrices()
 	if err != nil {
+		if herr, ok := err.(*errors.HTTPError); ok {
+			http.Error(w, herr.Message, herr.Code)
+			return
+		}
 		http.Error(w, "Could not get prices", http.StatusInternalServerError)
 		return
 	}
@@ -33,6 +38,10 @@ func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Reques
 func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.Request) {
 	res, err := h.Service.GetVehicleTypes()
 	if err != nil {
+		if herr, ok := err.(*errors.HTTPError); ok {
+			http.Error(w, herr.Message, herr.Code)
+			return
+		}
 		http.Error(w, "Could not get vehicle types", http.StatusInternalServerError)
 		return
 	}
@@ -101,7 +110,10 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 
 	availabilityResponse, err := h.Service.CheckAvailability(availabilityReq)
 	if err != nil {
-		log.Printf("Error from CheckAvailability service: %v", err)
+		if herr, ok := err.(*errors.HTTPError); ok {
+			http.Error(w, herr.Message, herr.Code)
+			return
+		}
 		http.Error(w, "An error occurred while checking availability.", http.StatusInternalServerError)
 		return
 	}
@@ -144,6 +156,10 @@ func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWrit
 
 	totalPrice, err := h.Service.GetTotalPriceForReservation(vehicleTypeID, startTime, endTime)
 	if err != nil {
+		if herr, ok := err.(*errors.HTTPError); ok {
+			http.Error(w, herr.Message, herr.Code)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -163,6 +179,10 @@ func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *htt
 	req.EndTime = req.EndTime.UTC()
 	reservation, err := h.Service.CreateReservation(&req)
 	if err != nil {
+		if herr, ok := err.(*errors.HTTPError); ok {
+			http.Error(w, herr.Message, herr.Code)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
@@ -182,6 +202,10 @@ func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.R
 
 	res, err := h.Service.GetReservationByCode(code, email)
 	if err != nil {
+		if herr, ok := err.(*errors.HTTPError); ok {
+			http.Error(w, herr.Message, herr.Code)
+			return
+		}
 		http.Error(w, "Get reservation not found", http.StatusNotFound)
 		return
 	}
@@ -192,6 +216,10 @@ func (h *UserReservationHandler) CancelReservation(w http.ResponseWriter, r *htt
 	code := mux.Vars(r)["code"]
 	err := h.Service.CancelReservation(code)
 	if err != nil {
+		if herr, ok := err.(*errors.HTTPError); ok {
+			http.Error(w, herr.Message, herr.Code)
+			return
+		}
 		http.Error(w, "Could not cancel reservation", http.StatusInternalServerError)
 		return
 	}

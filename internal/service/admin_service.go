@@ -2,6 +2,7 @@ package service
 
 import (
 	"estacionamienti/internal/db"
+	"estacionamienti/internal/entities"
 	"estacionamienti/internal/repository"
 )
 
@@ -17,8 +18,8 @@ func NewAdminService(adminRepo *repository.AdminRepository, reservationRepo *rep
 		reservationRepo: reservationRepo}
 }
 
-func (s *AdminService) ListReservations(date, vehicleType, status string) ([]db.Reservation, error) {
-	return s.adminRepo.ListReservations(date, vehicleType)
+func (s *AdminService) ListReservations(startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
+	return s.adminRepo.ListReservations(startTime, endTime, vehicleType, status, limit, offset)
 }
 
 func (s *AdminService) CancelReservation(code string) error {

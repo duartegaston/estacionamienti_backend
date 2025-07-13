@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"estacionamienti/internal/db"
 	"estacionamienti/internal/entities"
+	"estacionamienti/internal/errors"
 	"estacionamienti/internal/repository"
 	"fmt"
 	"github.com/stripe/stripe-go/v82"
@@ -152,7 +153,7 @@ func (s *ReservationService) CancelReservation(code string) error {
 	currentTime := time.Now().UTC()
 	if reservation.StartTime.Sub(currentTime) < 12*time.Hour {
 		log.Printf("Reservation can only be cancelled more than 12 hours before the start time")
-		return fmt.Errorf("Reservations can only be cancelled more than 12 hours before the start time")
+		return errors.ErrUnauthorized("Reservations can only be cancelled more than 12 hours before the start time")
 	}
 
 	err = s.stripeService.RefundPaymentBySessionID(reservation.StripeSessionID)

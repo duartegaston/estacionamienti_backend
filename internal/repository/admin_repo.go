@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"estacionamienti/internal/db"
+	"estacionamienti/internal/entities"
 	"strconv"
 )
 
@@ -14,20 +15,32 @@ func NewAdminRepository(db *sql.DB) *AdminRepository {
 	return &AdminRepository{DB: db}
 }
 
-func (r *AdminRepository) ListReservations(date, vehicleType string) ([]db.Reservation, error) {
+// Reemplaza ListReservations por la versión con filtros
+func (r *AdminRepository) ListReservations(startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
+	return r.ListReservationsWithFilters(startTime, endTime, vehicleType, status, limit, offset)
+}
+
+func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
 	query := `
 	SELECT
-		r.id, r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, r.vehicle_plate, r.vehicle_model,
-		r.status, r.start_time, r.end_time, r.created_at, r.updated_at
+		r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, vt.name AS vehicle_type_name,
+		r.vehicle_plate, r.vehicle_model, r.payment_method_id, pm.name AS payment_method_name, r.stripe_session_id, r.payment_status,
+		r.status, r.language, r.start_time, r.end_time, r.created_at, r.updated_at
 	FROM reservations r
 	JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
+	JOIN payment_method pm ON pm.id = r.payment_method_id
 	WHERE 1=1`
 	args := []interface{}{}
 	idx := 1
 
-	if date != "" {
-		query += " AND DATE(r.start_time) = $" + strconv.Itoa(idx)
-		args = append(args, date)
+	if startTime != "" {
+		query += " AND r.start_time >= $" + strconv.Itoa(idx)
+		args = append(args, startTime)
+		idx++
+	}
+	if endTime != "" {
+		query += " AND r.end_time <= $" + strconv.Itoa(idx)
+		args = append(args, endTime)
 		idx++
 	}
 	if vehicleType != "" {
@@ -35,7 +48,18 @@ func (r *AdminRepository) ListReservations(date, vehicleType string) ([]db.Reser
 		args = append(args, vehicleType)
 		idx++
 	}
+	if status != "" {
+		query += " AND r.status = $" + strconv.Itoa(idx)
+		args = append(args, status)
+		idx++
+	}
 	query += " ORDER BY r.start_time DESC"
+	if limit != "" {
+		query += " LIMIT " + limit
+	}
+	if offset != "" {
+		query += " OFFSET " + offset
+	}
 
 	rows, err := r.DB.Query(query, args...)
 	if err != nil {
@@ -43,12 +67,13 @@ func (r *AdminRepository) ListReservations(date, vehicleType string) ([]db.Reser
 	}
 	defer rows.Close()
 
-	var reservations []db.Reservation
+	var reservations []entities.ReservationResponse
 	for rows.Next() {
-		var res db.Reservation
+		var res entities.ReservationResponse
 		err := rows.Scan(
-			&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel,
-			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
+			&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehicleTypeName,
+			&res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.PaymentMethodName, &res.StripeSessionID, &res.PaymentStatus,
+			&res.Status, &res.Language, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
 		)
 		if err == nil {
 			reservations = append(reservations, res)
