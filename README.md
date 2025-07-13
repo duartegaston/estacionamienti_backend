@@ -1,143 +1,23 @@
-# Parking System API Documentation
+# Parking System API
 
-## Authentication Endpoints
+This project provides a backend API for managing parking reservations, pricing, availability, and vehicle configurations for a parking facility. It is designed to be used by both administrators and end users (customers) via a web or mobile frontend.
 
-### Admin Authentication
-- **POST /admin/login**
-  - Authenticates an admin user
-  - Request Body:
-    ```json
-    {
-      "user": "string",
-      "password": "string"
-    }
-    ```
-  - Response: JWT token for authentication
+## Purpose
+- Enable users to check availability, view prices, and make/cancel reservations for parking spots.
+- Allow administrators to manage reservations, configure vehicle spaces, and oversee parking operations.
+- Integrate with Stripe for secure online payments.
+- Enforce business rules such as cancellation windows and reservation validation.
 
-## Admin Endpoints
-All admin endpoints require JWT authentication.
+## Key Features
+- User and admin authentication (JWT-based).
+- Reservation management: create, view, cancel, and list reservations.
+- Real-time availability and pricing queries.
+- Vehicle type and parking space configuration.
+- Stripe payment integration for secure transactions.
+- Custom error handling with specific HTTP status codes for business rule enforcement.
 
-### Reservations Management
-- **GET /admin/reservations**
-  - List all reservations
-  - Query Parameters:
-    - `date`: Filter by date
-    - `vehicle_type`: Filter by vehicle type
-    - `status`: Filter by reservation status
-  - Response: Array of reservations
-
-- **POST /admin/reservations**
-  - Create a new reservation (admin)
-  - Request Body: Reservation details
-
-- **DELETE /admin/reservations/{code}**
-  - Delete/Cancel a reservation
-  - Path Parameters:
-    - `code`: Reservation code
-  - Response: Success message
-
-### Vehicle Configuration
-- **GET /admin/vehicle-config**
-  - List vehicle spaces configuration
-  - Response: Array of vehicle spaces
-
-- **PUT /admin/vehicle-config/{vehicle_type}**
-  - Update vehicle spaces for a specific type
-  - Path Parameters:
-    - `vehicle_type`: Type of vehicle
-  - Request Body:
-    ```json
-    {
-      "total_spaces": "integer",
-      "available_spaces": "integer"
-    }
-    ```
-
-## User Endpoints
-
-### Reservations
-- **POST /reservations**
-  - Create a new reservation
-  - Request Body:
-    ```json
-    {
-      "user_name": "string",
-      "user_email": "string",
-      "user_phone": "string",
-      "vehicle_type": "string",
-      "vehicle_plate": "string",
-      "vehicle_model": "string",
-      "payment_method": "string",
-      "start_time": "datetime",
-      "end_time": "datetime"
-    }
-    ```
-  - Response:
-    ```json
-    {
-      "reservation_code": "string",
-      "message": "Reservation confirmed."
-    }
-    ```
-
-- **GET /reservations/{code}**
-  - Get reservation details
-  - Path Parameters:
-    - `code`: Reservation code
-  - Request Body:
-    ```json
-    {
-      "email": "string"
-    }
-    ```
-  - Response: Reservation details
-
-### Pricing and Availability
-- **GET /prices**
-  - Get pricing for all vehicle types and durations
-  - Response: Array of prices by vehicle type and duration
-
-- **GET /availability**
-  - Check space availability
-  - Query Parameters:
-    - Vehicle type
-    - Start time
-    - End time
-  - Response: Available spaces
-
-## Common Response Formats
-
-### Reservation Object
-```json
-{
-  "code": "string",
-  "user_name": "string",
-  "user_email": "string",
-  "user_phone": "string",
-  "vehicle_type": "string",
-  "vehicle_plate": "string",
-  "vehicle_model": "string",
-  "payment_method": "string",
-  "status": "string",
-  "start_time": "datetime",
-  "end_time": "datetime",
-  "created_at": "datetime",
-  "updated_at": "datetime"
-}
-```
-
-### Price Response
-```json
-{
-  "vehicle_type": "string",
-  "reservation_time": "string",
-  "price": "integer"
-}
-```
-
-## Error Responses
-- 400: Bad Request - Invalid input
-- 401: Unauthorized - Authentication required
-- 404: Not Found - Resource not found
-- 409: Conflict - Resource conflict
-- 500: Internal Server Error
+## Technologies Used
+- Go (Golang) for backend API
+- Gorilla Mux for HTTP routing
+- Stripe Go SDK for payment processing
+- PostgreSQL (assumed) for data storage
