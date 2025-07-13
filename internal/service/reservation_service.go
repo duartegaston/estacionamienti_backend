@@ -343,7 +343,6 @@ func (s *ReservationService) SendReservationSMS(reservation entities.Reservation
 	}
 }
 
-// statusTranslation traduce el status según idioma.
 func (s *ReservationService) StatusTranslation(status, lang string) string {
 	switch lang {
 	case "es":

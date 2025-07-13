@@ -43,7 +43,7 @@ func (s *StripeService) CreateCheckoutSession(amount int64, currency, descriptio
 				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
 					Currency: stripe.String(currency),
 					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Name: stripe.String(description),
+						Name: stripe.String("GreenParking: " + description),
 					},
 					UnitAmount: stripe.Int64(amount),
 				},
