@@ -175,20 +175,21 @@ func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entit
 		return nil, err
 	}
 	resp := &entities.ReservationResponse{
-		Code:          reservation.Code,
-		UserName:      reservation.UserName,
-		UserEmail:     reservation.UserEmail,
-		UserPhone:     reservation.UserPhone,
-		VehicleTypeID: reservation.VehicleTypeID,
-		VehiclePlate:  reservation.VehiclePlate,
-		VehicleModel:  reservation.VehicleModel,
-		Status:        reservation.Status,
-		StartTime:     reservation.StartTime,
-		EndTime:       reservation.EndTime,
-		CreatedAt:     reservation.CreatedAt,
-		UpdatedAt:     reservation.UpdatedAt,
-		PaymentStatus: reservation.PaymentStatus,
-		Language:      reservation.Language,
+		Code:            reservation.Code,
+		UserName:        reservation.UserName,
+		UserEmail:       reservation.UserEmail,
+		UserPhone:       reservation.UserPhone,
+		VehicleTypeID:   reservation.VehicleTypeID,
+		VehiclePlate:    reservation.VehiclePlate,
+		VehicleModel:    reservation.VehicleModel,
+		PaymentMethodID: reservation.PaymentMethodID,
+		Status:          reservation.Status,
+		StartTime:       reservation.StartTime,
+		EndTime:         reservation.EndTime,
+		CreatedAt:       reservation.CreatedAt,
+		UpdatedAt:       reservation.UpdatedAt,
+		PaymentStatus:   reservation.PaymentStatus,
+		Language:        reservation.Language,
 	}
 	return resp, nil
 }
