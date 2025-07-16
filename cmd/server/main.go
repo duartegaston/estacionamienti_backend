@@ -112,7 +112,9 @@ func main() {
 	r.HandleFunc("/webhook/stripe", stripeHandler.HandleWebhook).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/reservation/by-session", stripeHandler.GetReservationBySessionIDHandler).Methods("GET", "OPTIONS")
 
-	allowedOrigins := handlers.AllowedOrigins([]string{os.Getenv("FRONTEND_URL"), "https://front-estacionamiento-one.vercel.app/es"})
+	allowedOrigins := handlers.AllowedOrigins([]string{
+		"https://front-estacionamiento-one.vercel.app",
+	})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With"})
 
