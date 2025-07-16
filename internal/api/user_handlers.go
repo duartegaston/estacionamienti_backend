@@ -23,6 +23,7 @@ func NewUserReservationHandler(svc *service.ReservationService) *UserReservation
 }
 
 func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Request) {
+	log.Println("Getting prices")
 	res, err := h.Service.GetPrices()
 	if err != nil {
 		if herr, ok := err.(*errors.HTTPError); ok {
@@ -36,6 +37,7 @@ func (h *UserReservationHandler) GetPrices(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.Request) {
+	log.Println("Getting vehicle types")
 	res, err := h.Service.GetVehicleTypes()
 	if err != nil {
 		if herr, ok := err.(*errors.HTTPError); ok {
@@ -49,6 +51,7 @@ func (h *UserReservationHandler) GetVehicleTypes(w http.ResponseWriter, r *http.
 }
 
 func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *http.Request) {
+	log.Println("Checking availability")
 	queryParams := r.URL.Query()
 	startTimeStr := queryParams.Get("startTime")
 	endTimeStr := queryParams.Get("endTime")
@@ -125,6 +128,7 @@ func (h *UserReservationHandler) CheckAvailability(w http.ResponseWriter, r *htt
 }
 
 func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWriter, r *http.Request) {
+	log.Println("Getting total price for reservation")
 	vehicleTypeIDStr := r.URL.Query().Get("vehicle_type_id")
 	startTimeStr := r.URL.Query().Get("start_time")
 	endTimeStr := r.URL.Query().Get("end_time")
@@ -170,6 +174,7 @@ func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWrit
 }
 
 func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
+	log.Println("Creating reservation")
 	var req entities.ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -192,6 +197,7 @@ func (h *UserReservationHandler) CreateReservation(w http.ResponseWriter, r *htt
 }
 
 func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.Request) {
+	log.Println("Getting reservation")
 	code := mux.Vars(r)["code"]
 
 	email := r.URL.Query().Get("email")
@@ -213,6 +219,7 @@ func (h *UserReservationHandler) GetReservation(w http.ResponseWriter, r *http.R
 }
 
 func (h *UserReservationHandler) CancelReservation(w http.ResponseWriter, r *http.Request) {
+	log.Println("Canceling reservation")
 	code := mux.Vars(r)["code"]
 	err := h.Service.CancelReservation(code)
 	if err != nil {
