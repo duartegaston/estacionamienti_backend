@@ -50,10 +50,9 @@ func (s *StripeService) CreateCheckoutSession(amount int64, currency, descriptio
 				Quantity: stripe.Int64(1),
 			},
 		},
-		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
-		//TODO: modificar urls
-		SuccessURL:    stripe.String("http://localhost:3000/" + language + "/reservations/create/confirmation/?session_id={CHECKOUT_SESSION_ID}"),
-		CancelURL:     stripe.String("http://localhost:3000/" + language + "/reservations/create/failed"),
+		Mode:          stripe.String(string(stripe.CheckoutSessionModePayment)),
+		SuccessURL:    stripe.String("https://front-estacionamiento-one.vercel.app/" + language + "/reservations/create/confirmation/?session_id={CHECKOUT_SESSION_ID}"),
+		CancelURL:     stripe.String("https://front-estacionamiento-one.vercel.app/" + language + "/reservations/create/failed"),
 		CustomerEmail: stripe.String(customerEmail),
 	}
 
