@@ -93,12 +93,21 @@ func (s *AdminService) CancelReservation(code string) error {
 	return err
 }
 
-// todo
-
-func (s *AdminService) ListVehicleSpaces() ([]db.VehicleSpace, error) {
+func (s *AdminService) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, error) {
 	return s.adminRepo.ListVehicleSpaces()
 }
 
-func (s *AdminService) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
-	return s.adminRepo.UpdateVehicleSpaces(vehicleType, totalSpaces, availableSpaces)
+func (s *AdminService) UpdateVehicleSpacesAndPrices(vehicleType string, spaces int, prices map[string]int) error {
+	err := s.adminRepo.UpdateVehicleSpaces(vehicleType, spaces)
+	if err != nil {
+		return err
+	}
+	for timeName, price := range prices {
+		err := s.adminRepo.UpdateVehiclePrice(vehicleType, timeName, price)
+		if err != nil {
+			log.Printf("[AdminService] Error updating price for vehicleType '%s', time '%s': %v", vehicleType, timeName, err)
+			return err
+		}
+	}
+	return nil
 }

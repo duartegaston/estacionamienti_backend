@@ -112,38 +112,78 @@ func (r *AdminRepository) FindReservationByCode(code string) (*entities.Reservat
 	return &res, nil
 }
 
-// --
-
-func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpace, error) {
-	rows, err := r.DB.Query(`
-		SELECT vt.name, vs.total_spaces, vs.available_spaces
-		FROM vehicle_spaces vs
-		JOIN vehicle_types vt ON vs.vehicle_type_id = vt.id
-	`)
+func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, error) {
+	query := `SELECT vt.id, vt.name, vs.spaces FROM vehicle_spaces vs JOIN vehicle_types vt ON vs.vehicle_type_id = vt.id`
+	rows, err := r.DB.Query(query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var spaces []db.VehicleSpace
+	var result []db.VehicleSpaceWithPrices
 	for rows.Next() {
-		var vs db.VehicleSpace
-		err := rows.Scan(&vs.VehicleType, &vs.TotalSpaces, &vs.AvailableSpaces)
+		var vehicleTypeID int
+		var vehicleTypeName string
+		var spaces int
+		err := rows.Scan(&vehicleTypeID, &vehicleTypeName, &spaces)
 		if err != nil {
 			continue
 		}
-		spaces = append(spaces, vs)
+
+		// Query prices for this vehicle type
+		pricesQuery := `SELECT rt.name, vp.price FROM vehicle_prices vp JOIN reservation_times rt ON vp.reservation_time_id = rt.id WHERE vp.vehicle_type_id = $1`
+		priceRows, err := r.DB.Query(pricesQuery, vehicleTypeID)
+		if err != nil {
+			continue
+		}
+		prices := make(map[string]int)
+		for priceRows.Next() {
+			var reservationTime string
+			var price int
+			if err := priceRows.Scan(&reservationTime, &price); err == nil {
+				prices[reservationTime] = price
+			}
+		}
+		priceRows.Close()
+
+		result = append(result, db.VehicleSpaceWithPrices{
+			VehicleType: vehicleTypeName,
+			Spaces:      spaces,
+			Prices:      prices,
+		})
 	}
-	return spaces, nil
+	return result, nil
 }
 
-func (r *AdminRepository) UpdateVehicleSpaces(vehicleType string, totalSpaces, availableSpaces int) error {
+func (r *AdminRepository) UpdateVehicleSpaces(vehicleType string, spaces int) error {
 	_, err := r.DB.Exec(`
 		UPDATE vehicle_spaces vs
-		SET total_spaces = $1,
-			available_spaces = $2
+		SET spaces = $1
 		FROM vehicle_types vt
-		WHERE vs.vehicle_type_id = vt.id AND vt.name = $3
-	`, totalSpaces, availableSpaces, vehicleType)
+		WHERE vs.vehicle_type_id = vt.id AND vt.name = $2
+	`, spaces, vehicleType)
+	return err
+}
+
+func (r *AdminRepository) UpdateVehiclePrice(vehicleType string, timeName string, price int) error {
+	// Get vehicle_type_id
+	var vehicleTypeID int
+	err := r.DB.QueryRow(`SELECT id FROM vehicle_types WHERE name = $1`, vehicleType).Scan(&vehicleTypeID)
+	if err != nil {
+		return err
+	}
+	// Get reservation_time_id
+	var reservationTimeID int
+	err = r.DB.QueryRow(`SELECT id FROM reservation_times WHERE name = $1`, timeName).Scan(&reservationTimeID)
+	if err != nil {
+		return err
+	}
+	// Upsert price
+	_, err = r.DB.Exec(`
+		INSERT INTO vehicle_prices (vehicle_type_id, reservation_time_id, price)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (vehicle_type_id, reservation_time_id)
+		DO UPDATE SET price = EXCLUDED.price
+	`, vehicleTypeID, reservationTimeID, price)
 	return err
 }

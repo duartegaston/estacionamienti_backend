@@ -33,6 +33,12 @@ type VehicleSpace struct {
 	AvailableSpaces int    `json:"available_spaces"`
 }
 
+type VehicleSpaceWithPrices struct {
+	VehicleType string            `json:"vehicle_type"`
+	Spaces      int               `json:"spaces"`
+	Prices      map[string]int    `json:"prices"`
+}
+
 type Reservation struct {
 	ID                    int       `json:"id"`
 	Code                  string    `json:"code"`
