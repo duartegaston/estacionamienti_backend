@@ -56,17 +56,18 @@ func main() {
 	adminAuthRepo := repository.NewAdminAuthRepository(db)
 
 	// Services
+	senderService := service.NewSenderService()
 	stripeSvc := service.NewStripeService(reservationRepo)
-	reservationSvc := service.NewReservationService(reservationRepo, stripeSvc)
+	reservationSvc := service.NewReservationService(reservationRepo, stripeSvc, senderService)
 	jobSvc := service.NewJobService(jobRepo)
-	adminSvc := service.NewAdminService(adminRepo, reservationRepo, stripeSvc)
+	adminSvc := service.NewAdminService(adminRepo, reservationRepo, stripeSvc, senderService)
 	adminAuthSvc := service.NewAdminAuthService(adminAuthRepo)
 
 	// Handlers
 	userReservationHandler := api.NewUserReservationHandler(reservationSvc)
 	adminHandler := api.NewAdminHandler(adminSvc)
 	adminAuthHandler := api.NewAdminAuthHandler(adminAuthSvc)
-	stripeHandler := api.NewStripeWebhookHandler(os.Getenv("STRIPE_WEBHOOK_SECRET"), reservationSvc)
+	stripeHandler := api.NewStripeWebhookHandler(os.Getenv("STRIPE_WEBHOOK_SECRET"), reservationSvc, senderService)
 
 	// Cron scheduler
 	//   "@hourly": Ejecutar al inicio de cada hora
@@ -103,6 +104,7 @@ func main() {
 	adminRouter := r.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(auth.AdminAuthMiddleware)
 	adminRouter.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET", "OPTIONS")
+
 	adminRouter.HandleFunc("/reservations", adminHandler.CreateReservation).Methods("POST", "OPTIONS")
 	adminRouter.HandleFunc("/reservations/{code}", adminHandler.AdminDeleteReservation).Methods("DELETE", "OPTIONS")
 	adminRouter.HandleFunc("/vehicle-config", adminHandler.ListVehicleSpaces).Methods("GET", "OPTIONS")

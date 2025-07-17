@@ -2,8 +2,10 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"estacionamienti/internal/db"
 	"estacionamienti/internal/entities"
+	"fmt"
 	"strconv"
 )
 
@@ -13,11 +15,6 @@ type AdminRepository struct {
 
 func NewAdminRepository(db *sql.DB) *AdminRepository {
 	return &AdminRepository{DB: db}
-}
-
-// Reemplaza ListReservations por la versión con filtros
-func (r *AdminRepository) ListReservations(startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
-	return r.ListReservationsWithFilters(startTime, endTime, vehicleType, status, limit, offset)
 }
 
 func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
@@ -81,6 +78,41 @@ func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, vehicl
 	}
 	return reservations, nil
 }
+
+// FindReservationByCode returns a reservation by code and maps it to entities.ReservationResponse
+func (r *AdminRepository) FindReservationByCode(code string) (*entities.ReservationResponse, error) {
+	var res entities.ReservationResponse
+
+	query := `
+        SELECT
+            r.code, r.user_name, r.user_email, r.user_phone,
+            r.vehicle_type_id, vt.name AS vehicle_type_name,
+            r.vehicle_plate, r.vehicle_model,
+            r.payment_method_id, pm.name AS payment_method_name,
+            r.status, r.start_time, r.end_time, r.created_at, r.updated_at, r.language
+        FROM reservations r
+        JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
+        JOIN payment_method pm ON pm.id = r.payment_method_id
+        WHERE r.code = $1`
+
+	err := r.DB.QueryRow(query, code).Scan(
+		&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
+		&res.VehicleTypeID, &res.VehicleTypeName,
+		&res.VehiclePlate, &res.VehicleModel,
+		&res.PaymentMethodID, &res.PaymentMethodName,
+		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.Language,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("reservation with code '%s' not found: %w", code, err)
+		}
+		return nil, fmt.Errorf("error querying or scanning reservation: %w", err)
+	}
+	return &res, nil
+}
+
+// --
 
 func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpace, error) {
 	rows, err := r.DB.Query(`
