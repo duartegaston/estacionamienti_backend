@@ -63,7 +63,7 @@ func (h *AdminHandler) AdminDeleteReservation(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Could not delete reservation", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"message": "Reservation deleted"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "Reservation canceled with code: " + code})
 }
 
 // todo

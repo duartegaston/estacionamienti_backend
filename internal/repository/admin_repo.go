@@ -50,7 +50,7 @@ func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, vehicl
 		args = append(args, status)
 		idx++
 	}
-	query += " ORDER BY r.start_time DESC"
+	query += " ORDER BY r.created_at DESC"
 	if limit != "" {
 		query += " LIMIT " + limit
 	}

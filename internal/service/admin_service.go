@@ -70,10 +70,8 @@ func (s *AdminService) CancelReservation(code string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Canceling reservation with code: %s", code)
 	sessionID := reservation.StripeSessionID
 	currentTime := time.Now().UTC()
-
 	// Si la session de stripe no está, se puede cancelar (Quiere decir que nunca hubo pago por stripe)
 	// O si la reserva ya empezó, se cancela y no se devuelve el dinero
 	if sessionID == "" || reservation.StartTime.Before(currentTime) {
@@ -84,6 +82,7 @@ func (s *AdminService) CancelReservation(code string) error {
 		}
 		return nil
 	}
+	log.Printf("Refunding payment for reservation with code: %s", code)
 	err = s.stripeService.RefundPaymentBySessionID(reservation.StripeSessionID)
 	if err != nil {
 		return err
@@ -91,26 +90,6 @@ func (s *AdminService) CancelReservation(code string) error {
 
 	_, err = s.reservationRepo.CancelReservation(code)
 
-	statusTraducido := s.senderService.StatusTranslation(statusCancel, reservation.Language)
-	resp := &entities.ReservationResponse{
-		Code:            reservation.Code,
-		UserName:        reservation.UserName,
-		UserEmail:       reservation.UserEmail,
-		UserPhone:       reservation.UserPhone,
-		VehicleTypeID:   reservation.VehicleTypeID,
-		VehiclePlate:    reservation.VehiclePlate,
-		VehicleModel:    reservation.VehicleModel,
-		PaymentMethodID: reservation.PaymentMethodID,
-		Status:          reservation.Status,
-		StartTime:       reservation.StartTime,
-		EndTime:         reservation.EndTime,
-		CreatedAt:       reservation.CreatedAt,
-		UpdatedAt:       reservation.UpdatedAt,
-		PaymentStatus:   reservation.PaymentStatus,
-		Language:        reservation.Language,
-	}
-	s.senderService.SendReservationSMS(*resp, statusTraducido)
-	s.senderService.SendReservationEmail(*resp, statusTraducido)
 	return err
 }
 
