@@ -113,7 +113,7 @@ func main() {
 	r.HandleFunc("/api/reservation/by-session", stripeHandler.GetReservationBySessionIDHandler).Methods("GET", "OPTIONS")
 
 	allowedOrigins := handlers.AllowedOrigins([]string{
-		"https://front-estacionamiento-one.vercel.app",
+		"http://localhost:3000",
 	})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With"})
