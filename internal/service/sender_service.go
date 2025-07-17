@@ -134,3 +134,36 @@ func (s *SenderService) SendReservationSMS(reservation entities.ReservationRespo
 		log.Printf("ALERTA: La reserva %s se creó, pero falló el envío del SMS de confirmación a %s: %v", reservationCode, userPhoneNumber, errSMS)
 	}
 }
+
+func (s *SenderService) StatusTranslation(status, lang string) string {
+	switch lang {
+	case "es":
+		switch status {
+		case "pending":
+			return "pendiente"
+		case "active":
+			return "activa"
+		case "finished":
+			return "finalizada"
+		case "canceled", "cancelled":
+			return "cancelada"
+		case "confirmed":
+			return "confirmada"
+		}
+	case "it":
+		switch status {
+		case "pending":
+			return "in attesa"
+		case "active":
+			return "attiva"
+		case "finished":
+			return "finito"
+		case "canceled", "cancelled":
+			return "annullata"
+		case "confirmed":
+			return "confermata"
+		}
+	}
+	// Default: English
+	return status
+}

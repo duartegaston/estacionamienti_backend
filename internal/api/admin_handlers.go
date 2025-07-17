@@ -66,6 +66,8 @@ func (h *AdminHandler) AdminDeleteReservation(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(map[string]string{"message": "Reservation deleted"})
 }
 
+// todo
+
 func (h *AdminHandler) ListVehicleSpaces(w http.ResponseWriter, r *http.Request) {
 	spaces, err := h.adminService.ListVehicleSpaces()
 	if err != nil {

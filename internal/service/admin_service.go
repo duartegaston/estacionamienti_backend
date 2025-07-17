@@ -58,17 +58,63 @@ func (s *AdminService) CreateReservation(reservationReq *entities.ReservationReq
 		log.Printf("Error getting reservation from repository: %v", err)
 		return nil, err
 	}
-	s.senderService.SendReservationSMS(*reservationResponse, statusActive)
-	s.senderService.SendReservationEmail(*reservationResponse, statusActive)
+	statusTraducido := s.senderService.StatusTranslation(statusActive, reservation.Language)
+	s.senderService.SendReservationSMS(*reservationResponse, statusTraducido)
+	s.senderService.SendReservationEmail(*reservationResponse, statusTraducido)
 
 	return reservationResponse, nil
 }
 
-// todo
-
 func (s *AdminService) CancelReservation(code string) error {
-	return nil
+	reservation, err := s.reservationRepo.GetReservationByCodeOnly(code)
+	if err != nil {
+		return err
+	}
+	log.Printf("Canceling reservation with code: %s", code)
+	sessionID := reservation.StripeSessionID
+	currentTime := time.Now().UTC()
+
+	// Si la session de stripe no está, se puede cancelar (Quiere decir que nunca hubo pago por stripe)
+	// O si la reserva ya empezó, se cancela y no se devuelve el dinero
+	if sessionID == "" || reservation.StartTime.Before(currentTime) {
+		log.Printf("Canceling reservation with code: %s", code)
+		_, err = s.reservationRepo.CancelReservation(code)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	err = s.stripeService.RefundPaymentBySessionID(reservation.StripeSessionID)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.reservationRepo.CancelReservation(code)
+
+	statusTraducido := s.senderService.StatusTranslation(statusCancel, reservation.Language)
+	resp := &entities.ReservationResponse{
+		Code:            reservation.Code,
+		UserName:        reservation.UserName,
+		UserEmail:       reservation.UserEmail,
+		UserPhone:       reservation.UserPhone,
+		VehicleTypeID:   reservation.VehicleTypeID,
+		VehiclePlate:    reservation.VehiclePlate,
+		VehicleModel:    reservation.VehicleModel,
+		PaymentMethodID: reservation.PaymentMethodID,
+		Status:          reservation.Status,
+		StartTime:       reservation.StartTime,
+		EndTime:         reservation.EndTime,
+		CreatedAt:       reservation.CreatedAt,
+		UpdatedAt:       reservation.UpdatedAt,
+		PaymentStatus:   reservation.PaymentStatus,
+		Language:        reservation.Language,
+	}
+	s.senderService.SendReservationSMS(*resp, statusTraducido)
+	s.senderService.SendReservationEmail(*resp, statusTraducido)
+	return err
 }
+
+// todo
 
 func (s *AdminService) ListVehicleSpaces() ([]db.VehicleSpace, error) {
 	return s.adminRepo.ListVehicleSpaces()

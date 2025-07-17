@@ -148,7 +148,6 @@ func (s *ReservationService) CancelReservation(code string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("reservationResp: %v", reservationResp)
 
 	currentTime := time.Now().UTC()
 	if reservation.StartTime.Sub(currentTime) < 12*time.Hour {
@@ -163,7 +162,7 @@ func (s *ReservationService) CancelReservation(code string) error {
 
 	_, err = s.Repo.CancelReservation(code)
 
-	statusTraducido := s.StatusTranslation(statusCancel, reservationResp.Language)
+	statusTraducido := s.senderService.StatusTranslation(statusCancel, reservationResp.Language)
 	s.senderService.SendReservationSMS(*reservationResp, statusTraducido)
 	s.senderService.SendReservationEmail(*reservationResp, statusTraducido)
 	return err
@@ -224,39 +223,6 @@ func (s *ReservationService) GetSessionIDByPaymentIntentID(paymentIntentID strin
 		}
 	}
 	return "", fmt.Errorf("No session_id found for PaymentIntentID %s", paymentIntentID)
-}
-
-func (s *ReservationService) StatusTranslation(status, lang string) string {
-	switch lang {
-	case "es":
-		switch status {
-		case "pending":
-			return "pendiente"
-		case "active":
-			return "activa"
-		case "finished":
-			return "finalizada"
-		case "canceled", "cancelled":
-			return "cancelada"
-		case "confirmed":
-			return "confirmada"
-		}
-	case "it":
-		switch status {
-		case "pending":
-			return "in attesa"
-		case "active":
-			return "attiva"
-		case "finished":
-			return "finito"
-		case "canceled", "cancelled":
-			return "annullata"
-		case "confirmed":
-			return "confermata"
-		}
-	}
-	// Default: English
-	return status
 }
 
 func (s *ReservationService) handlePaymentIntent(req *entities.ReservationRequest, reservation *db.Reservation) (string, error) {

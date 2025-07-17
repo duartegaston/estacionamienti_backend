@@ -81,7 +81,7 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		statusTraducido := h.reservationService.StatusTranslation(confirmed, reservation.Language)
+		statusTraducido := h.senderService.StatusTranslation(confirmed, reservation.Language)
 		h.senderService.SendReservationSMS(*reservation, statusTraducido)
 		h.senderService.SendReservationEmail(*reservation, statusTraducido)
 

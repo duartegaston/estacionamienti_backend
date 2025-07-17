@@ -104,9 +104,9 @@ func main() {
 	adminRouter := r.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(auth.AdminAuthMiddleware)
 	adminRouter.HandleFunc("/reservations", adminHandler.ListReservations).Methods("GET", "OPTIONS")
-
 	adminRouter.HandleFunc("/reservations", adminHandler.CreateReservation).Methods("POST", "OPTIONS")
 	adminRouter.HandleFunc("/reservations/{code}", adminHandler.AdminDeleteReservation).Methods("DELETE", "OPTIONS")
+
 	adminRouter.HandleFunc("/vehicle-config", adminHandler.ListVehicleSpaces).Methods("GET", "OPTIONS")
 	adminRouter.HandleFunc("/vehicle-config/{vehicle_type}", adminHandler.UpdateVehicleSpaces).Methods("PUT", "OPTIONS")
 
