@@ -40,6 +40,7 @@ func (s *AdminService) CreateReservation(reservationReq *entities.ReservationReq
 		VehicleModel:    reservationReq.VehicleModel,
 		PaymentMethodID: reservationReq.PaymentMethodID,
 		Status:          statusActive,
+		TotalPrice:      reservationReq.TotalPrice,
 		StartTime:       reservationReq.StartTime,
 		EndTime:         reservationReq.EndTime,
 		Language:        reservationReq.Language,

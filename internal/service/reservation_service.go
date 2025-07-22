@@ -109,6 +109,7 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 		Language:        req.Language,
+		TotalPrice:      req.TotalPrice,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
@@ -189,6 +190,7 @@ func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entit
 		UpdatedAt:       reservation.UpdatedAt,
 		PaymentStatus:   reservation.PaymentStatus,
 		Language:        reservation.Language,
+		TotalPrice:      reservation.TotalPrice,
 	}
 	return resp, nil
 }

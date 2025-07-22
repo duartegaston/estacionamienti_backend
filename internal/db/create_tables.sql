@@ -57,7 +57,8 @@ CREATE TABLE reservations (
     payment_status VARCHAR(50),
     stripe_session_id VARCHAR(255),
     stripe_payment_intent_id VARCHAR(255),
-    language VARCHAR(20)
+    language VARCHAR(20),
+    total_price FLOAT
 );
 
 INSERT INTO vehicle_types (name) VALUES ('car'), ('motorcycle'), ('suv');

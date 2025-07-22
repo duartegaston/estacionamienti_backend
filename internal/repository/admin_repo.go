@@ -6,6 +6,7 @@ import (
 	"estacionamienti/internal/db"
 	"estacionamienti/internal/entities"
 	"fmt"
+	"log"
 	"strconv"
 )
 
@@ -21,8 +22,8 @@ func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, vehicl
 	query := `
 	SELECT
 		r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, vt.name AS vehicle_type_name,
-		r.vehicle_plate, r.vehicle_model, r.payment_method_id, pm.name AS payment_method_name, r.stripe_session_id, r.payment_status,
-		r.status, r.language, r.start_time, r.end_time, r.created_at, r.updated_at
+		r.vehicle_plate, r.vehicle_model, r.payment_method_id, pm.name AS payment_method_name, COALESCE(r.payment_status, '') AS payment_status,
+		r.status, r.start_time, r.end_time, r.created_at, r.updated_at, COALESCE(r.total_price, 0) AS total_price
 	FROM reservations r
 	JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
 	JOIN payment_method pm ON pm.id = r.payment_method_id
@@ -69,8 +70,8 @@ func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, vehicl
 		var res entities.ReservationResponse
 		err := rows.Scan(
 			&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehicleTypeName,
-			&res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.PaymentMethodName, &res.StripeSessionID, &res.PaymentStatus,
-			&res.Status, &res.Language, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt,
+			&res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.PaymentMethodName, &res.PaymentStatus,
+			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.TotalPrice,
 		)
 		if err == nil {
 			reservations = append(reservations, res)
@@ -89,18 +90,19 @@ func (r *AdminRepository) FindReservationByCode(code string) (*entities.Reservat
             r.vehicle_type_id, vt.name AS vehicle_type_name,
             r.vehicle_plate, r.vehicle_model,
             r.payment_method_id, pm.name AS payment_method_name,
-            r.status, r.start_time, r.end_time, r.created_at, r.updated_at, r.language
+            r.status, r.start_time, r.end_time, r.created_at, r.updated_at, r.language, r.total_price
         FROM reservations r
         JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
         JOIN payment_method pm ON pm.id = r.payment_method_id
         WHERE r.code = $1`
 
+	log.Printf("SQL Query: %s | Args: %v", query, code)
 	err := r.DB.QueryRow(query, code).Scan(
 		&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
 		&res.VehicleTypeID, &res.VehicleTypeName,
 		&res.VehiclePlate, &res.VehicleModel,
 		&res.PaymentMethodID, &res.PaymentMethodName,
-		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.Language,
+		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.Language, &res.TotalPrice,
 	)
 
 	if err != nil {
@@ -114,6 +116,7 @@ func (r *AdminRepository) FindReservationByCode(code string) (*entities.Reservat
 
 func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, error) {
 	query := `SELECT vt.id, vt.name, vs.spaces FROM vehicle_spaces vs JOIN vehicle_types vt ON vs.vehicle_type_id = vt.id`
+	log.Printf("SQL Query: %s | Args: %v", query, nil)
 	rows, err := r.DB.Query(query)
 	if err != nil {
 		return nil, err
@@ -132,6 +135,7 @@ func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, erro
 
 		// Query prices for this vehicle type
 		pricesQuery := `SELECT rt.name, vp.price FROM vehicle_prices vp JOIN reservation_times rt ON vp.reservation_time_id = rt.id WHERE vp.vehicle_type_id = $1`
+		log.Printf("SQL Query: %s | Args: %v", pricesQuery, vehicleTypeID)
 		priceRows, err := r.DB.Query(pricesQuery, vehicleTypeID)
 		if err != nil {
 			continue
@@ -156,34 +160,42 @@ func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, erro
 }
 
 func (r *AdminRepository) UpdateVehicleSpaces(vehicleType string, spaces int) error {
-	_, err := r.DB.Exec(`
+	query := `
 		UPDATE vehicle_spaces vs
 		SET spaces = $1
 		FROM vehicle_types vt
 		WHERE vs.vehicle_type_id = vt.id AND vt.name = $2
-	`, spaces, vehicleType)
+	`
+	log.Printf("SQL Query: %s | Args: %v", query, []interface{}{spaces, vehicleType})
+	_, err := r.DB.Exec(query, spaces, vehicleType)
 	return err
 }
 
 func (r *AdminRepository) UpdateVehiclePrice(vehicleType string, timeName string, price int) error {
 	// Get vehicle_type_id
 	var vehicleTypeID int
-	err := r.DB.QueryRow(`SELECT id FROM vehicle_types WHERE name = $1`, vehicleType).Scan(&vehicleTypeID)
+	query := `SELECT id FROM vehicle_types WHERE name = $1`
+	log.Printf("SQL Query: %s | Args: %v", query, vehicleType)
+	err := r.DB.QueryRow(query, vehicleType).Scan(&vehicleTypeID)
 	if err != nil {
 		return err
 	}
 	// Get reservation_time_id
 	var reservationTimeID int
-	err = r.DB.QueryRow(`SELECT id FROM reservation_times WHERE name = $1`, timeName).Scan(&reservationTimeID)
+	query = `SELECT id FROM reservation_times WHERE name = $1`
+	log.Printf("SQL Query: %s | Args: %v", query, timeName)
+	err = r.DB.QueryRow(query, timeName).Scan(&reservationTimeID)
 	if err != nil {
 		return err
 	}
 	// Upsert price
-	_, err = r.DB.Exec(`
+	query = `
 		INSERT INTO vehicle_prices (vehicle_type_id, reservation_time_id, price)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (vehicle_type_id, reservation_time_id)
 		DO UPDATE SET price = EXCLUDED.price
-	`, vehicleTypeID, reservationTimeID, price)
+	`
+	log.Printf("SQL Query: %s | Args: %v", query, []interface{}{vehicleTypeID, reservationTimeID, price})
+	_, err = r.DB.Exec(query, vehicleTypeID, reservationTimeID, price)
 	return err
 }

@@ -34,9 +34,9 @@ type VehicleSpace struct {
 }
 
 type VehicleSpaceWithPrices struct {
-	VehicleType string            `json:"vehicle_type"`
-	Spaces      int               `json:"spaces"`
-	Prices      map[string]int    `json:"prices"`
+	VehicleType string         `json:"vehicle_type"`
+	Spaces      int            `json:"spaces"`
+	Prices      map[string]int `json:"prices"`
 }
 
 type Reservation struct {
@@ -58,4 +58,5 @@ type Reservation struct {
 	PaymentStatus         string    `json:"payment_status,omitempty"`
 	Language              string    `json:"language"`
 	StripePaymentIntentID string    `json:"stripe_payment_intent_id,omitempty"`
+	TotalPrice            float64   `json:"total_price,omitempty"`
 }
