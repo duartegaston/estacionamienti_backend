@@ -56,17 +56,18 @@ func main() {
 	adminAuthRepo := repository.NewAdminAuthRepository(db)
 
 	// Services
+	senderService := service.NewSenderService()
 	stripeSvc := service.NewStripeService(reservationRepo)
-	reservationSvc := service.NewReservationService(reservationRepo, stripeSvc)
+	reservationSvc := service.NewReservationService(reservationRepo, stripeSvc, senderService)
 	jobSvc := service.NewJobService(jobRepo)
-	adminSvc := service.NewAdminService(adminRepo, reservationRepo, stripeSvc)
+	adminSvc := service.NewAdminService(adminRepo, reservationRepo, stripeSvc, senderService)
 	adminAuthSvc := service.NewAdminAuthService(adminAuthRepo)
 
 	// Handlers
 	userReservationHandler := api.NewUserReservationHandler(reservationSvc)
 	adminHandler := api.NewAdminHandler(adminSvc)
 	adminAuthHandler := api.NewAdminAuthHandler(adminAuthSvc)
-	stripeHandler := api.NewStripeWebhookHandler(os.Getenv("STRIPE_WEBHOOK_SECRET"), reservationSvc)
+	stripeHandler := api.NewStripeWebhookHandler(os.Getenv("STRIPE_WEBHOOK_SECRET"), reservationSvc, senderService)
 
 	// Cron scheduler
 	//   "@hourly": Ejecutar al inicio de cada hora
@@ -93,6 +94,7 @@ func main() {
 	r.HandleFunc("/api/total-price", userReservationHandler.GetTotalPriceForReservation).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/reservations", userReservationHandler.CreateReservation).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.GetReservation).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/reservation/by-session", stripeHandler.GetReservationBySessionIDHandler).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/reservations/{code}", userReservationHandler.CancelReservation).Methods("DELETE", "OPTIONS")
 
 	// Admin login
@@ -110,10 +112,9 @@ func main() {
 
 	// Stripe
 	r.HandleFunc("/webhook/stripe", stripeHandler.HandleWebhook).Methods("POST", "OPTIONS")
-	r.HandleFunc("/api/reservation/by-session", stripeHandler.GetReservationBySessionIDHandler).Methods("GET", "OPTIONS")
 
 	allowedOrigins := handlers.AllowedOrigins([]string{
-		"https://front-estacionamiento-one.vercel.app",
+		"http://localhost:3000",
 	})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With"})

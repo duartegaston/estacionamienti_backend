@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"estacionamienti/internal/entities"
+	"estacionamienti/internal/errors"
 	"estacionamienti/internal/service"
 	"net/http"
 
@@ -32,9 +34,26 @@ func (h *AdminHandler) ListReservations(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(reservations)
 }
 
-// TO DO
 func (h *AdminHandler) CreateReservation(w http.ResponseWriter, r *http.Request) {
-	return
+	var req entities.ReservationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	req.StartTime = req.StartTime.UTC()
+	req.EndTime = req.EndTime.UTC()
+	reservation, err := h.adminService.CreateReservation(&req)
+	if err != nil {
+		if herr, ok := err.(*errors.HTTPError); ok {
+			http.Error(w, herr.Message, herr.Code)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"reservation": reservation,
+	})
 }
 
 func (h *AdminHandler) AdminDeleteReservation(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +63,7 @@ func (h *AdminHandler) AdminDeleteReservation(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Could not delete reservation", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"message": "Reservation deleted"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "Reservation canceled with code: " + code})
 }
 
 func (h *AdminHandler) ListVehicleSpaces(w http.ResponseWriter, r *http.Request) {
@@ -60,17 +79,17 @@ func (h *AdminHandler) ListVehicleSpaces(w http.ResponseWriter, r *http.Request)
 func (h *AdminHandler) UpdateVehicleSpaces(w http.ResponseWriter, r *http.Request) {
 	vehicleType := mux.Vars(r)["vehicle_type"]
 	var req struct {
-		TotalSpaces     int `json:"total_spaces"`
-		AvailableSpaces int `json:"available_spaces"`
+		Spaces int               `json:"spaces"`
+		Prices map[string]int    `json:"prices"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	err := h.adminService.UpdateVehicleSpaces(vehicleType, req.TotalSpaces, req.AvailableSpaces)
+	err := h.adminService.UpdateVehicleSpacesAndPrices(vehicleType, req.Spaces, req.Prices)
 	if err != nil {
-		http.Error(w, "Could not update vehicle spaces", http.StatusInternalServerError)
+		http.Error(w, "Could not update vehicle spaces/prices", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"message": "Vehicle spaces updated"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "Vehicle spaces and prices updated"})
 }

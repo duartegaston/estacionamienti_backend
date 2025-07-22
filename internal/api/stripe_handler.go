@@ -22,12 +22,14 @@ const (
 type StripeWebhookHandler struct {
 	StripeSecret       string
 	reservationService *service.ReservationService
+	senderService      *service.SenderService
 }
 
-func NewStripeWebhookHandler(stripeSecret string, reservationService *service.ReservationService) *StripeWebhookHandler {
+func NewStripeWebhookHandler(stripeSecret string, reservationService *service.ReservationService, senderService *service.SenderService) *StripeWebhookHandler {
 	return &StripeWebhookHandler{
 		StripeSecret:       stripeSecret,
 		reservationService: reservationService,
+		senderService:      senderService,
 	}
 }
 
@@ -79,9 +81,9 @@ func (h *StripeWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Requ
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		statusTraducido := h.reservationService.StatusTranslation(confirmed, reservation.Language)
-		h.reservationService.SendReservationSMS(*reservation, statusTraducido)
-		h.reservationService.SendReservationEmail(*reservation, statusTraducido)
+		statusTraducido := h.senderService.StatusTranslation(confirmed, reservation.Language)
+		h.senderService.SendReservationSMS(*reservation, statusTraducido)
+		h.senderService.SendReservationEmail(*reservation, statusTraducido)
 
 	case "charge.refunded":
 		var charge stripe.Charge
