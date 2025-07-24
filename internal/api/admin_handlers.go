@@ -19,14 +19,15 @@ func NewAdminHandler(svc *service.AdminService) *AdminHandler {
 }
 
 func (h *AdminHandler) ListReservations(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
 	startTime := r.URL.Query().Get("start_time")
 	endTime := r.URL.Query().Get("end_time")
-	vehicleType := r.URL.Query().Get("vehicle_type")
+	vehicleType := r.URL.Query().Get("vehicle_type_name")
 	status := r.URL.Query().Get("status")
 	limit := r.URL.Query().Get("limit")
 	offset := r.URL.Query().Get("offset")
 
-	reservations, err := h.adminService.ListReservations(startTime, endTime, vehicleType, status, limit, offset)
+	reservations, err := h.adminService.ListReservations(code, startTime, endTime, vehicleType, status, limit, offset)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
@@ -79,8 +80,8 @@ func (h *AdminHandler) ListVehicleSpaces(w http.ResponseWriter, r *http.Request)
 func (h *AdminHandler) UpdateVehicleSpaces(w http.ResponseWriter, r *http.Request) {
 	vehicleType := mux.Vars(r)["vehicle_type"]
 	var req struct {
-		Spaces int               `json:"spaces"`
-		Prices map[string]int    `json:"prices"`
+		Spaces int            `json:"spaces"`
+		Prices map[string]int `json:"prices"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)

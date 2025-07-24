@@ -18,7 +18,7 @@ func NewAdminRepository(db *sql.DB) *AdminRepository {
 	return &AdminRepository{DB: db}
 }
 
-func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
+func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
 	query := `
 	SELECT
 		r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, vt.name AS vehicle_type_name,
@@ -32,13 +32,18 @@ func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, vehicl
 	idx := 1
 
 	if startTime != "" {
-		query += " AND r.start_time >= $" + strconv.Itoa(idx)
+		query += " AND DATE(r.start_time) >= $" + strconv.Itoa(idx)
 		args = append(args, startTime)
 		idx++
 	}
 	if endTime != "" {
-		query += " AND r.end_time <= $" + strconv.Itoa(idx)
+		query += " AND DATE(r.end_time) <= $" + strconv.Itoa(idx)
 		args = append(args, endTime)
+		idx++
+	}
+	if code != "" {
+		query += " AND r.code LIKE $" + strconv.Itoa(idx)
+		args = append(args, "%"+code+"%")
 		idx++
 	}
 	if vehicleType != "" {
