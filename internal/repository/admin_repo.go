@@ -18,7 +18,45 @@ func NewAdminRepository(db *sql.DB) *AdminRepository {
 	return &AdminRepository{DB: db}
 }
 
-func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
+func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, vehicleType, status, limit, offset string) (reservationsList entities.ReservationsList, err error) {
+	// Build WHERE clause
+	whereClause := " WHERE 1=1"
+	args := []interface{}{}
+	idx := 1
+
+	if startTime != "" && endTime != "" {
+		whereClause += " AND DATE(r.start_time) >= $" + strconv.Itoa(idx)
+		args = append(args, startTime)
+		idx++
+		whereClause += " AND DATE(r.end_time) <= $" + strconv.Itoa(idx)
+		args = append(args, endTime)
+		idx++
+	} else if startTime != "" {
+		whereClause += " AND DATE(r.start_time) = $" + strconv.Itoa(idx)
+		args = append(args, startTime)
+		idx++
+	} else if endTime != "" {
+		whereClause += " AND DATE(r.end_time) = $" + strconv.Itoa(idx)
+		args = append(args, endTime)
+		idx++
+	}
+	if code != "" {
+		whereClause += " AND r.code LIKE $" + strconv.Itoa(idx)
+		args = append(args, "%"+code+"%")
+		idx++
+	}
+	if vehicleType != "" {
+		whereClause += " AND vt.name = $" + strconv.Itoa(idx)
+		args = append(args, vehicleType)
+		idx++
+	}
+	if status != "" {
+		whereClause += " AND r.status = $" + strconv.Itoa(idx)
+		args = append(args, status)
+		idx++
+	}
+
+	// Main query
 	query := `
 	SELECT
 		r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, vt.name AS vehicle_type_name,
@@ -27,36 +65,17 @@ func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, 
 	FROM reservations r
 	JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
 	JOIN payment_method pm ON pm.id = r.payment_method_id
-	WHERE 1=1`
-	args := []interface{}{}
-	idx := 1
-
-	if startTime != "" {
-		query += " AND DATE(r.start_time) >= $" + strconv.Itoa(idx)
-		args = append(args, startTime)
-		idx++
+	` + whereClause
+	// Ordenamiento dinámico
+	if startTime != "" && endTime != "" {
+		query += " ORDER BY r.start_time DESC"
+	} else if startTime != "" {
+		query += " ORDER BY r.start_time DESC"
+	} else if endTime != "" {
+		query += " ORDER BY r.end_time DESC"
+	} else {
+		query += " ORDER BY r.created_at DESC"
 	}
-	if endTime != "" {
-		query += " AND DATE(r.end_time) <= $" + strconv.Itoa(idx)
-		args = append(args, endTime)
-		idx++
-	}
-	if code != "" {
-		query += " AND r.code LIKE $" + strconv.Itoa(idx)
-		args = append(args, "%"+code+"%")
-		idx++
-	}
-	if vehicleType != "" {
-		query += " AND vt.name = $" + strconv.Itoa(idx)
-		args = append(args, vehicleType)
-		idx++
-	}
-	if status != "" {
-		query += " AND r.status = $" + strconv.Itoa(idx)
-		args = append(args, status)
-		idx++
-	}
-	query += " ORDER BY r.created_at DESC"
 	if limit != "" {
 		query += " LIMIT " + limit
 	}
@@ -66,11 +85,10 @@ func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, 
 
 	rows, err := r.DB.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return reservationsList, err
 	}
 	defer rows.Close()
 
-	var reservations []entities.ReservationResponse
 	for rows.Next() {
 		var res entities.ReservationResponse
 		err := rows.Scan(
@@ -79,10 +97,23 @@ func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, 
 			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.TotalPrice,
 		)
 		if err == nil {
-			reservations = append(reservations, res)
+			reservationsList.Reservations = append(reservationsList.Reservations, res)
 		}
 	}
-	return reservations, nil
+	limitInt, _ := strconv.Atoi(limit)
+	offsetInt, _ := strconv.Atoi(offset)
+	reservationsList.Limit = limitInt
+	reservationsList.Offset = offsetInt
+
+	// Count query with same filters
+	countQuery := `SELECT COUNT(*) FROM reservations r JOIN vehicle_types vt ON vt.id = r.vehicle_type_id JOIN payment_method pm ON pm.id = r.payment_method_id` + whereClause
+	var total int
+	err = r.DB.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return reservationsList, err
+	}
+	reservationsList.Total = int64(total)
+	return reservationsList, nil
 }
 
 // FindReservationByCode returns a reservation by code and maps it to entities.ReservationResponse

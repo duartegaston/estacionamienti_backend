@@ -23,7 +23,7 @@ func NewAdminService(adminRepo *repository.AdminRepository, reservationRepo *rep
 		senderService:   senderService}
 }
 
-func (s *AdminService) ListReservations(code, startTime, endTime, vehicleType, status, limit, offset string) ([]entities.ReservationResponse, error) {
+func (s *AdminService) ListReservations(code, startTime, endTime, vehicleType, status, limit, offset string) (entities.ReservationsList, error) {
 	return s.adminRepo.ListReservationsWithFilters(code, startTime, endTime, vehicleType, status, limit, offset)
 }
 
