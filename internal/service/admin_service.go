@@ -66,29 +66,26 @@ func (s *AdminService) CreateReservation(reservationReq *entities.ReservationReq
 	return reservationResponse, nil
 }
 
-func (s *AdminService) CancelReservation(code string) error {
+func (s *AdminService) CancelReservation(code string, refund bool) error {
 	reservation, err := s.reservationRepo.GetReservationByCodeOnly(code)
 	if err != nil {
 		return err
 	}
 	sessionID := reservation.StripeSessionID
-	currentTime := time.Now().UTC()
 	// Si la session de stripe no está, se puede cancelar (Quiere decir que nunca hubo pago por stripe)
-	// O si la reserva ya empezó, se cancela y no se devuelve el dinero
-	if sessionID == "" || reservation.StartTime.Before(currentTime) {
-		log.Printf("Canceling reservation with code: %s", code)
+	if sessionID == "" {
 		_, err = s.reservationRepo.CancelReservation(code)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-	log.Printf("Refunding payment for reservation with code: %s", code)
-	err = s.stripeService.RefundPaymentBySessionID(reservation.StripeSessionID)
-	if err != nil {
-		return err
+	if refund {
+		err = s.stripeService.RefundPaymentBySessionID(sessionID)
+		if err != nil {
+			return err
+		}
 	}
-
 	_, err = s.reservationRepo.CancelReservation(code)
 
 	return err

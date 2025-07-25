@@ -6,6 +6,7 @@ import (
 	"estacionamienti/internal/errors"
 	"estacionamienti/internal/service"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -59,7 +60,12 @@ func (h *AdminHandler) CreateReservation(w http.ResponseWriter, r *http.Request)
 
 func (h *AdminHandler) AdminDeleteReservation(w http.ResponseWriter, r *http.Request) {
 	code := mux.Vars(r)["code"]
-	err := h.adminService.CancelReservation(code)
+	refund := r.URL.Query().Get("refund")
+	refundBool, err := strconv.ParseBool(refund)
+	if err != nil {
+		http.Error(w, "Invalid refund query param", http.StatusBadRequest)
+	}
+	err = h.adminService.CancelReservation(code, refundBool)
 	if err != nil {
 		http.Error(w, "Could not delete reservation", http.StatusInternalServerError)
 		return
