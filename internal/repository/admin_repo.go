@@ -202,36 +202,22 @@ func (r *AdminRepository) UpdateVehicleSpaces(vehicleType string, spaces int) er
 		FROM vehicle_types vt
 		WHERE vs.vehicle_type_id = vt.id AND vt.name = $2
 	`
-	log.Printf("SQL Query: %s | Args: %v", query, []interface{}{spaces, vehicleType})
 	_, err := r.DB.Exec(query, spaces, vehicleType)
 	return err
 }
 
-func (r *AdminRepository) UpdateVehiclePrice(vehicleType string, timeName string, price int) error {
-	// Get vehicle_type_id
-	var vehicleTypeID int
-	query := `SELECT id FROM vehicle_types WHERE name = $1`
-	log.Printf("SQL Query: %s | Args: %v", query, vehicleType)
-	err := r.DB.QueryRow(query, vehicleType).Scan(&vehicleTypeID)
-	if err != nil {
-		return err
-	}
-	// Get reservation_time_id
-	var reservationTimeID int
-	query = `SELECT id FROM reservation_times WHERE name = $1`
-	log.Printf("SQL Query: %s | Args: %v", query, timeName)
-	err = r.DB.QueryRow(query, timeName).Scan(&reservationTimeID)
-	if err != nil {
-		return err
-	}
-	// Upsert price
-	query = `
+func (r *AdminRepository) UpdateVehiclePrice(vehicleType string, timeName string, price float32) error {
+	// Upsert price with subqueries to fetch IDs in a single statement
+	query := `
 		INSERT INTO vehicle_prices (vehicle_type_id, reservation_time_id, price)
-		VALUES ($1, $2, $3)
+		VALUES (
+			(SELECT id FROM vehicle_types WHERE name = $1),
+			(SELECT id FROM reservation_times WHERE name = $2),
+			$3
+		)
 		ON CONFLICT (vehicle_type_id, reservation_time_id)
 		DO UPDATE SET price = EXCLUDED.price
 	`
-	log.Printf("SQL Query: %s | Args: %v", query, []interface{}{vehicleTypeID, reservationTimeID, price})
-	_, err = r.DB.Exec(query, vehicleTypeID, reservationTimeID, price)
+	_, err := r.DB.Exec(query, vehicleType, timeName, price)
 	return err
 }

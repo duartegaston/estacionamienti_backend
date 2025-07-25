@@ -95,7 +95,7 @@ func (s *AdminService) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, error) 
 	return s.adminRepo.ListVehicleSpaces()
 }
 
-func (s *AdminService) UpdateVehicleSpacesAndPrices(vehicleType string, spaces int, prices map[string]int) error {
+func (s *AdminService) UpdateVehicleSpacesAndPrices(vehicleType string, spaces int, prices map[string]float32) error {
 	err := s.adminRepo.UpdateVehicleSpaces(vehicleType, spaces)
 	if err != nil {
 		return err

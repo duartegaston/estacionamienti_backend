@@ -21,7 +21,7 @@ CREATE TABLE vehicle_prices (
     id SERIAL PRIMARY KEY,
     vehicle_type_id INT NOT NULL REFERENCES vehicle_types(id),
     reservation_time_id INT NOT NULL REFERENCES reservation_times(id),
-    price INT NOT NULL,
+    price FLOAT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

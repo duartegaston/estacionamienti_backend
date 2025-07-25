@@ -86,8 +86,8 @@ func (h *AdminHandler) ListVehicleSpaces(w http.ResponseWriter, r *http.Request)
 func (h *AdminHandler) UpdateVehicleSpaces(w http.ResponseWriter, r *http.Request) {
 	vehicleType := mux.Vars(r)["vehicle_type"]
 	var req struct {
-		Spaces int            `json:"spaces"`
-		Prices map[string]int `json:"prices"`
+		Spaces int                `json:"spaces"`
+		Prices map[string]float32 `json:"prices"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)

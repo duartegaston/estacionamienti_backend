@@ -23,7 +23,7 @@ type VehiclePrice struct {
 	ID                int       `json:"id"`
 	VehicleTypeID     int       `json:"vehicle_type_id"`
 	ReservationTimeID int       `json:"reservation_time_id"`
-	Price             int       `json:"price"`
+	Price             float32   `json:"price"`
 	CreatedAt         time.Time `json:"created_at"`
 }
 
@@ -58,5 +58,5 @@ type Reservation struct {
 	PaymentStatus         string    `json:"payment_status,omitempty"`
 	Language              string    `json:"language"`
 	StripePaymentIntentID string    `json:"stripe_payment_intent_id,omitempty"`
-	TotalPrice            float64   `json:"total_price,omitempty"`
+	TotalPrice            float32   `json:"total_price,omitempty"`
 }
