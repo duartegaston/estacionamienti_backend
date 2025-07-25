@@ -85,9 +85,15 @@ func (r *ReservationRepository) GetHourlyAvailabilityDetails(startTime, endTime 
 		return nil, fmt.Errorf("could not fetch vehicle types: %w", err)
 	}
 	// Compose slice of IDs sharing the pool
-	var vtList []struct{ID int; Name string}
+	var vtList []struct {
+		ID   int
+		Name string
+	}
 	for _, vt := range vehicleTypes {
-		vtList = append(vtList, struct{ID int; Name string}{vt.ID, vt.Name})
+		vtList = append(vtList, struct {
+			ID   int
+			Name string
+		}{vt.ID, vt.Name})
 	}
 	idsForPool := utils.VehicleTypeIDsForSpace(vtList, vehicleTypeName)
 	if len(idsForPool) == 0 {
@@ -165,7 +171,7 @@ func (r *ReservationRepository) GetHourlyAvailabilityDetails(startTime, endTime 
 	return results, nil
 }
 
-func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTimeID int) (int, error) {
+func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTimeID int) (float32, error) {
 	var price int
 	err := r.DB.QueryRow(`SELECT price FROM vehicle_prices WHERE vehicle_type_id = $1 AND reservation_time_id = $2`, vehicleTypeID, reservationTimeID).Scan(&price)
 	if err != nil {
@@ -174,7 +180,7 @@ func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTi
 		}
 		return 0, err
 	}
-	return price, nil
+	return float32(price), nil
 }
 
 func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {

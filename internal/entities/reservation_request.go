@@ -31,7 +31,7 @@ type ReservationResponse struct {
 	StripeSessionID   string    `json:"stripe_session_id,omitempty"`
 	PaymentStatus     string    `json:"payment_status,omitempty"`
 	Status            string    `json:"status"`
-	Language          string    `json:"language"`
+	Language          string    `json:"language,omitempty"`
 	StartTime         time.Time `json:"start_time"`
 	EndTime           time.Time `json:"end_time"`
 	CreatedAt         time.Time `json:"created_at"`

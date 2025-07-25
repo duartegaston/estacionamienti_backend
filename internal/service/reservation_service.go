@@ -93,7 +93,7 @@ func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) 
 	return response, nil
 }
 
-func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, startTime, endTime time.Time) (int, error) {
+func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, startTime, endTime time.Time) (float32, error) {
 	if !endTime.After(startTime) {
 		return 0, fmt.Errorf("end_time must be after start_time")
 	}
@@ -102,7 +102,7 @@ func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, star
 	if err != nil {
 		return 0, fmt.Errorf("could not get price per %s: %w", unit, err)
 	}
-	return pricePerUnit * count, nil
+	return pricePerUnit * float32(count), nil
 }
 
 func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (*entities.StripeSessionResponse, error) {

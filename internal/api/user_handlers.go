@@ -164,7 +164,7 @@ func (h *UserReservationHandler) GetTotalPriceForReservation(w http.ResponseWrit
 		return
 	}
 
-	response := map[string]int{"total_price": totalPrice}
+	response := map[string]float32{"total_price": totalPrice}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
