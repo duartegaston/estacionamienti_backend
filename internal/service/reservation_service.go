@@ -39,7 +39,19 @@ func (s *ReservationService) GetVehicleTypes() ([]db.VehicleType, error) {
 }
 
 func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) (*entities.AvailabilityResponse, error) {
-	hourlyDetails, err := s.Repo.GetHourlyAvailabilityDetails(req.StartTime, req.EndTime, req.VehicleTypeID)
+	// You need vehicle type name for mapping
+	var vehicleTypeName string
+	vehicleTypes, err := s.Repo.GetVehicleTypes()
+	if err == nil {
+		for _, vt := range vehicleTypes {
+			if vt.ID == req.VehicleTypeID {
+				vehicleTypeName = vt.Name
+				break
+			}
+		}
+	}
+
+	hourlyDetails, err := s.Repo.GetHourlyAvailabilityDetails(req.StartTime, req.EndTime, req.VehicleTypeID, vehicleTypeName)
 	if err != nil {
 		log.Printf("Error from GetHourlyAvailabilityDetails: %v", err)
 		return nil, fmt.Errorf("internal error checking availability: %w", err)
