@@ -61,3 +61,17 @@ func (r *JobRepository) UpdateReservationStatuses(ids []int, newStatus string) e
 	}
 	return nil
 }
+
+// DeletePendingReservationsOlderThan deletes all reservations with status 'pending' created before the given time.
+func (r *JobRepository) DeletePendingReservationsOlderThan(before time.Time) (int64, error) {
+	query := `DELETE FROM reservations WHERE status = 'pending' AND created_at < $1`
+	result, err := r.DB.Exec(query, before)
+	if err != nil {
+		return 0, fmt.Errorf("error deleting old pending reservations: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("error getting rows affected: %w", err)
+	}
+	return rowsAffected, nil
+}

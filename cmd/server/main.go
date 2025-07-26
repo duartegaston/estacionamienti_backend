@@ -70,10 +70,28 @@ func main() {
 	stripeHandler := api.NewStripeWebhookHandler(os.Getenv("STRIPE_WEBHOOK_SECRET"), reservationSvc, senderService)
 
 	// Cron scheduler
+	//   "0 1 * * *" : Ejecutar todos los días a la 1am (UTC)
+	c := cron.New(cron.WithLocation(time.FixedZone("CET", 3600))) // Italy time (CET/CEST)
+	_, err = c.AddFunc("0 1 * * *", func() {
+		oneDayAgo := time.Now().Add(-24 * time.Hour)
+		log.Println("Executing scheduled task: Delete old pending reservations (Italy 1am)")
+		rows, err := jobSvc.DeleteOldPendingReservations(oneDayAgo)
+		if err != nil {
+			log.Printf("Error deleting old pending reservations: %v", err)
+		} else {
+			log.Printf("Deleted %d old pending reservations", rows)
+		}
+	})
+	if err != nil {
+		log.Fatalf("Failed to add cron job: %v", err)
+	}
+	c.Start()
+	log.Println("Cron scheduler started.")
+
 	//   "@hourly": Ejecutar al inicio de cada hora
 	//   "*/1 * * * *"               : Ejecutar cada minuto (para pruebas, puede ser muy frecuente para producción)
-	c := cron.New(cron.WithLocation(time.UTC))
-	_, err = c.AddFunc("@hourly", func() {
+	c2 := cron.New(cron.WithLocation(time.UTC))
+	_, err = c2.AddFunc("@hourly", func() {
 		log.Println("Executing scheduled task: Update Finished Reservations")
 		if err := jobSvc.UpdateFinishedReservations(); err != nil {
 			log.Printf("Error during scheduled task: UpdateFinishedReservations: %v", err)
@@ -82,7 +100,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to add cron job: %v", err)
 	}
-	c.Start()
+	c2.Start()
 	log.Println("Cron scheduler started.")
 
 	r := mux.NewRouter()

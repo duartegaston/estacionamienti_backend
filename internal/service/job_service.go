@@ -4,6 +4,7 @@ import (
 	"estacionamienti/internal/repository"
 	"fmt"
 	"log"
+	"time"
 )
 
 type JobService struct {
@@ -37,4 +38,9 @@ func (s *JobService) UpdateFinishedReservations() error {
 
 	log.Printf("Cron Job: Successfully updated %d reservations to 'finished'.", len(reservationIDs))
 	return nil
+}
+
+// DeleteOldPendingReservations deletes all reservations with status 'pending' created before the given time.
+func (s *JobService) DeleteOldPendingReservations(before time.Time) (int64, error) {
+	return s.Repo.DeletePendingReservationsOlderThan(before)
 }
