@@ -6,7 +6,6 @@ import (
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/checkout/session"
 	"github.com/stripe/stripe-go/v82/refund"
-	"log"
 )
 
 type StripeService struct {
@@ -22,11 +21,9 @@ func (s *StripeService) RefundPaymentBySessionID(sessionID string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("reservation: %v", reservation)
 	if reservation.StripePaymentIntentID == "" {
 		return fmt.Errorf("No PaymentIntent found for session %s", sessionID)
 	}
-	log.Printf("Refunding payment for session %s", sessionID)
 	params := &stripe.RefundParams{
 		PaymentIntent: stripe.String(reservation.StripePaymentIntentID),
 	}

@@ -6,6 +6,7 @@ import (
 	"estacionamienti/internal/repository"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -69,6 +70,7 @@ func (s *AdminService) CreateReservation(reservationReq *entities.ReservationReq
 func (s *AdminService) CancelReservation(code string, refund bool) error {
 	reservation, err := s.reservationRepo.GetReservationByCodeOnly(code)
 	if err != nil {
+		log.Printf("Error canceling reservation: %v", err)
 		return err
 	}
 	sessionID := reservation.StripeSessionID
@@ -83,7 +85,11 @@ func (s *AdminService) CancelReservation(code string, refund bool) error {
 	if refund {
 		err = s.stripeService.RefundPaymentBySessionID(sessionID)
 		if err != nil {
-			return err
+			if strings.Contains(err.Error(), "charge_already_refunded") {
+				log.Printf("Charge already refunded: %v", err)
+			} else {
+				return err
+			}
 		}
 	}
 	_, err = s.reservationRepo.CancelReservation(code)

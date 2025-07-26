@@ -152,7 +152,6 @@ func (r *AdminRepository) FindReservationByCode(code string) (*entities.Reservat
 
 func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, error) {
 	query := `SELECT vt.id, vt.name, vs.spaces FROM vehicle_spaces vs JOIN vehicle_types vt ON vs.vehicle_type_id = vt.id`
-	log.Printf("SQL Query: %s | Args: %v", query, nil)
 	rows, err := r.DB.Query(query)
 	if err != nil {
 		return nil, err
@@ -171,7 +170,6 @@ func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, erro
 
 		// Query prices for this vehicle type
 		pricesQuery := `SELECT rt.name, vp.price FROM vehicle_prices vp JOIN reservation_times rt ON vp.reservation_time_id = rt.id WHERE vp.vehicle_type_id = $1`
-		log.Printf("SQL Query: %s | Args: %v", pricesQuery, vehicleTypeID)
 		priceRows, err := r.DB.Query(pricesQuery, vehicleTypeID)
 		if err != nil {
 			continue

@@ -1,6 +1,8 @@
 package entities
 
-import "time"
+import (
+	"time"
+)
 
 type ReservationRequest struct {
 	VehicleTypeID   int       `json:"vehicle_type_id"`

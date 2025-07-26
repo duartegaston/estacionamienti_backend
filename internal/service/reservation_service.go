@@ -184,6 +184,7 @@ func (s *ReservationService) CancelReservation(code string) error {
 func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entities.ReservationResponse, error) {
 	reservation, err := s.Repo.GetReservationByStripeSessionID(sessionID)
 	if err != nil {
+		log.Printf("Error getting reservation by Stripe session ID: %v", err)
 		return nil, err
 	}
 	resp := &entities.ReservationResponse{

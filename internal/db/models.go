@@ -1,6 +1,8 @@
 package db
 
-import "time"
+import (
+	"time"
+)
 
 type Admin struct {
 	ID           int       `json:"id"`
