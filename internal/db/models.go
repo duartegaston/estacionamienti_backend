@@ -34,9 +34,9 @@ type VehicleSpace struct {
 }
 
 type VehicleSpaceWithPrices struct {
-	VehicleType string         `json:"vehicle_type"`
-	Spaces      int            `json:"spaces"`
-	Prices      map[string]int `json:"prices"`
+	VehicleType string             `json:"vehicle_type"`
+	Spaces      int                `json:"spaces"`
+	Prices      map[string]float32 `json:"prices"`
 }
 
 type Reservation struct {

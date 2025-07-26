@@ -176,10 +176,10 @@ func (r *AdminRepository) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, erro
 		if err != nil {
 			continue
 		}
-		prices := make(map[string]int)
+		prices := make(map[string]float32)
 		for priceRows.Next() {
 			var reservationTime string
-			var price int
+			var price float32
 			if err := priceRows.Scan(&reservationTime, &price); err == nil {
 				prices[reservationTime] = price
 			}
