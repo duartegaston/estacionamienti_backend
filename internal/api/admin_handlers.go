@@ -21,14 +21,14 @@ func NewAdminHandler(svc *service.AdminService) *AdminHandler {
 
 func (h *AdminHandler) ListReservations(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
-	startTime := r.URL.Query().Get("start_time")
-	endTime := r.URL.Query().Get("end_time")
+	startTimeStr := r.URL.Query().Get("start_time")
+	endTimeStr := r.URL.Query().Get("end_time")
 	vehicleType := r.URL.Query().Get("vehicle_type_name")
 	status := r.URL.Query().Get("status")
 	limit := r.URL.Query().Get("limit")
 	offset := r.URL.Query().Get("offset")
 
-	reservations, err := h.adminService.ListReservations(code, startTime, endTime, vehicleType, status, limit, offset)
+	reservations, err := h.adminService.ListReservations(startTimeStr, endTimeStr, code, vehicleType, status, limit, offset)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return

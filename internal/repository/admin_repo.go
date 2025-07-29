@@ -6,8 +6,8 @@ import (
 	"estacionamienti/internal/db"
 	"estacionamienti/internal/entities"
 	"fmt"
-	"log"
 	"strconv"
+	"time"
 )
 
 type AdminRepository struct {
@@ -18,28 +18,59 @@ func NewAdminRepository(db *sql.DB) *AdminRepository {
 	return &AdminRepository{DB: db}
 }
 
-func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, vehicleType, status, limit, offset string) (reservationsList entities.ReservationsList, err error) {
+func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, code, vehicleType, status, limit, offset string) (reservationsList entities.ReservationsList, err error) {
+	loc, _ := time.LoadLocation("Europe/Rome") // Horario de Italia
+
 	// Build WHERE clause
 	whereClause := " WHERE 1=1"
 	args := []interface{}{}
 	idx := 1
 
+	var startTimeUTC, endTimeUTC time.Time
+
+	// Procesar startTime
+	if startTime != "" {
+		startDateLocal, err := time.ParseInLocation("2006-01-02", startTime, loc)
+		if err != nil {
+			return reservationsList, err
+		}
+		startTimeUTC = startDateLocal.UTC()
+	}
+
+	// Procesar endTime
+	if endTime != "" {
+		endDateLocal, err := time.ParseInLocation("2006-01-02", endTime, loc)
+		if err != nil {
+			return reservationsList, err
+		}
+		endTimeUTC = endDateLocal.Add(24 * time.Hour).UTC() // Fin del día (exclusivo)
+	}
+
 	if startTime != "" && endTime != "" {
-		whereClause += " AND DATE(r.start_time) >= $" + strconv.Itoa(idx)
-		args = append(args, startTime)
+		whereClause += " AND r.start_time >= $" + strconv.Itoa(idx)
+		args = append(args, startTimeUTC)
 		idx++
-		whereClause += " AND DATE(r.end_time) <= $" + strconv.Itoa(idx)
-		args = append(args, endTime)
+		whereClause += " AND r.end_time < $" + strconv.Itoa(idx)
+		args = append(args, endTimeUTC)
 		idx++
 	} else if startTime != "" {
-		whereClause += " AND DATE(r.start_time) = $" + strconv.Itoa(idx)
-		args = append(args, startTime)
+		startEndUTC := startTimeUTC.Add(24 * time.Hour)
+		whereClause += " AND r.start_time >= $" + strconv.Itoa(idx)
+		args = append(args, startTimeUTC)
+		idx++
+		whereClause += " AND r.start_time < $" + strconv.Itoa(idx)
+		args = append(args, startEndUTC)
 		idx++
 	} else if endTime != "" {
-		whereClause += " AND DATE(r.end_time) = $" + strconv.Itoa(idx)
-		args = append(args, endTime)
+		endStartUTC := endTimeUTC.Add(-24 * time.Hour)
+		whereClause += " AND r.end_time >= $" + strconv.Itoa(idx)
+		args = append(args, endStartUTC)
+		idx++
+		whereClause += " AND r.end_time < $" + strconv.Itoa(idx)
+		args = append(args, endTimeUTC)
 		idx++
 	}
+
 	if code != "" {
 		whereClause += " AND r.code LIKE $" + strconv.Itoa(idx)
 		args = append(args, "%"+code+"%")
@@ -66,16 +97,16 @@ func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, 
 	JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
 	JOIN payment_method pm ON pm.id = r.payment_method_id
 	` + whereClause
+
 	// Ordenamiento dinámico
-	if startTime != "" && endTime != "" {
-		query += " ORDER BY r.start_time DESC"
-	} else if startTime != "" {
+	if startTime != "" {
 		query += " ORDER BY r.start_time DESC"
 	} else if endTime != "" {
 		query += " ORDER BY r.end_time DESC"
 	} else {
 		query += " ORDER BY r.created_at DESC"
 	}
+
 	if limit != "" {
 		query += " LIMIT " + limit
 	}
@@ -100,19 +131,26 @@ func (r *AdminRepository) ListReservationsWithFilters(code, startTime, endTime, 
 			reservationsList.Reservations = append(reservationsList.Reservations, res)
 		}
 	}
+
 	limitInt, _ := strconv.Atoi(limit)
 	offsetInt, _ := strconv.Atoi(offset)
 	reservationsList.Limit = limitInt
 	reservationsList.Offset = offsetInt
 
-	// Count query with same filters
-	countQuery := `SELECT COUNT(*) FROM reservations r JOIN vehicle_types vt ON vt.id = r.vehicle_type_id JOIN payment_method pm ON pm.id = r.payment_method_id` + whereClause
+	// Count query
+	countQuery := `
+		SELECT COUNT(*) FROM reservations r
+		JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
+		JOIN payment_method pm ON pm.id = r.payment_method_id
+	` + whereClause
+
 	var total int
 	err = r.DB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		return reservationsList, err
 	}
 	reservationsList.Total = int64(total)
+
 	return reservationsList, nil
 }
 
@@ -132,7 +170,6 @@ func (r *AdminRepository) FindReservationByCode(code string) (*entities.Reservat
         JOIN payment_method pm ON pm.id = r.payment_method_id
         WHERE r.code = $1`
 
-	log.Printf("SQL Query: %s | Args: %v", query, code)
 	err := r.DB.QueryRow(query, code).Scan(
 		&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
 		&res.VehicleTypeID, &res.VehicleTypeName,

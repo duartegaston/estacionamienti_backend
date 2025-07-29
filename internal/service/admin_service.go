@@ -24,8 +24,13 @@ func NewAdminService(adminRepo *repository.AdminRepository, reservationRepo *rep
 		senderService:   senderService}
 }
 
-func (s *AdminService) ListReservations(code, startTime, endTime, vehicleType, status, limit, offset string) (entities.ReservationsList, error) {
-	return s.adminRepo.ListReservationsWithFilters(code, startTime, endTime, vehicleType, status, limit, offset)
+func (s *AdminService) ListReservations(startTime, endTime, code, vehicleType, status, limit, offset string) (entities.ReservationsList, error) {
+	reservationList, err := s.adminRepo.ListReservationsWithFilters(startTime, endTime, code, vehicleType, status, limit, offset)
+	if err != nil {
+		log.Printf("Error listing reservations: %v", err)
+		return entities.ReservationsList{}, err
+	}
+	return reservationList, nil
 }
 
 func (s *AdminService) CreateReservation(reservationReq *entities.ReservationRequest) (reservationResponse *entities.ReservationResponse, err error) {
