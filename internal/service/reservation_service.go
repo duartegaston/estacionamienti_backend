@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"estacionamienti/internal/db"
 	"estacionamienti/internal/entities"
 	"estacionamienti/internal/errors"
@@ -128,16 +129,16 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		Code:            code,
 		UserName:        req.UserName,
 		UserEmail:       req.UserEmail,
-		UserPhone:       req.UserPhone,
+		UserPhone:       sql.NullString{String: req.UserPhone, Valid: req.UserPhone != ""},
 		VehicleTypeID:   req.VehicleTypeID,
-		VehiclePlate:    req.VehiclePlate,
-		VehicleModel:    req.VehicleModel,
+		VehiclePlate:    sql.NullString{String: req.VehiclePlate, Valid: req.VehiclePlate != ""},
+		VehicleModel:    sql.NullString{String: req.VehicleModel, Valid: req.VehicleModel != ""},
 		PaymentMethodID: req.PaymentMethodID,
 		Status:          statusPending,
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 		Language:        req.Language,
-		TotalPrice:      req.TotalPrice,
+		TotalPrice:      sql.NullFloat64{Float64: float64(req.TotalPrice), Valid: req.TotalPrice != 0},
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
@@ -157,7 +158,7 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 	return &entities.StripeSessionResponse{
 		Code:      code,
 		URL:       sessionURL,
-		SessionID: reservation.StripeSessionID}, nil
+		SessionID: reservation.StripeSessionID.String}, nil
 }
 
 func (s *ReservationService) GetReservationByCode(code, email string) (*entities.ReservationResponse, error) {
@@ -171,10 +172,10 @@ func (s *ReservationService) CancelReservation(code string) error {
 	}
 	log.Printf("Canceling reservation with code: %s", code)
 	sessionID := reservation.StripeSessionID
-	if sessionID == "" {
+	if sessionID.String == "" {
 		return fmt.Errorf("No Stripe session ID found for reservation code: %s", code)
 	}
-	reservationResp, err := s.GetReservationBySessionID(sessionID)
+	reservationResp, err := s.GetReservationBySessionID(sessionID.String)
 	if err != nil {
 		return err
 	}
@@ -185,7 +186,7 @@ func (s *ReservationService) CancelReservation(code string) error {
 		return errors.ErrUnauthorized("Reservations can only be cancelled more than 12 hours before the start time")
 	}
 
-	err = s.stripeService.RefundPaymentBySessionID(reservation.StripeSessionID)
+	err = s.stripeService.RefundPaymentBySessionID(reservation.StripeSessionID.String)
 	if err != nil {
 		return err
 	}
@@ -208,19 +209,19 @@ func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entit
 		Code:            reservation.Code,
 		UserName:        reservation.UserName,
 		UserEmail:       reservation.UserEmail,
-		UserPhone:       reservation.UserPhone,
+		UserPhone:       reservation.UserPhone.String,
 		VehicleTypeID:   reservation.VehicleTypeID,
-		VehiclePlate:    reservation.VehiclePlate,
-		VehicleModel:    reservation.VehicleModel,
+		VehiclePlate:    reservation.VehiclePlate.String,
+		VehicleModel:    reservation.VehicleModel.String,
 		PaymentMethodID: reservation.PaymentMethodID,
 		Status:          reservation.Status,
 		StartTime:       reservation.StartTime,
 		EndTime:         reservation.EndTime,
 		CreatedAt:       reservation.CreatedAt,
 		UpdatedAt:       reservation.UpdatedAt,
-		PaymentStatus:   reservation.PaymentStatus,
+		PaymentStatus:   reservation.PaymentStatus.String,
 		Language:        reservation.Language,
-		TotalPrice:      reservation.TotalPrice,
+		TotalPrice:      float32(reservation.TotalPrice.Float64),
 	}
 	return resp, nil
 }
@@ -273,8 +274,8 @@ func (s *ReservationService) handlePaymentIntent(req *entities.ReservationReques
 		return "", err
 	}
 
-	reservation.StripeSessionID = sessionID
-	reservation.PaymentStatus = statusPending
+	reservation.StripeSessionID = sql.NullString{String: sessionID, Valid: true}
+	reservation.PaymentStatus = sql.NullString{String: statusPending, Valid: true}
 
 	return sessionURL, nil
 }

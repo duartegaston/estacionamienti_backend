@@ -21,11 +21,11 @@ func (s *StripeService) RefundPaymentBySessionID(sessionID string) error {
 	if err != nil {
 		return err
 	}
-	if reservation.StripePaymentIntentID == "" {
+	if reservation.StripePaymentIntentID.String == "" {
 		return fmt.Errorf("No PaymentIntent found for session %s", sessionID)
 	}
 	params := &stripe.RefundParams{
-		PaymentIntent: stripe.String(reservation.StripePaymentIntentID),
+		PaymentIntent: stripe.String(reservation.StripePaymentIntentID.String),
 	}
 	_, err = refund.New(params)
 	return err

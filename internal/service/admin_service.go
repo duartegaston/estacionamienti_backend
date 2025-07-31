@@ -6,8 +6,9 @@ import (
 	"estacionamienti/internal/repository"
 	"fmt"
 	"log"
-	"strings"
 	"time"
+
+	"database/sql"
 )
 
 type AdminService struct {
@@ -40,13 +41,13 @@ func (s *AdminService) CreateReservation(reservationReq *entities.ReservationReq
 		Code:            code,
 		UserName:        reservationReq.UserName,
 		UserEmail:       reservationReq.UserEmail,
-		UserPhone:       reservationReq.UserPhone,
+		UserPhone:       sql.NullString{String: reservationReq.UserPhone, Valid: reservationReq.UserPhone != ""},
 		VehicleTypeID:   reservationReq.VehicleTypeID,
-		VehiclePlate:    reservationReq.VehiclePlate,
-		VehicleModel:    reservationReq.VehicleModel,
+		VehiclePlate:    sql.NullString{String: reservationReq.VehiclePlate, Valid: reservationReq.VehiclePlate != ""},
+		VehicleModel:    sql.NullString{String: reservationReq.VehicleModel, Valid: reservationReq.VehicleModel != ""},
 		PaymentMethodID: reservationReq.PaymentMethodID,
 		Status:          statusActive,
-		TotalPrice:      reservationReq.TotalPrice,
+		TotalPrice:      sql.NullFloat64{Float64: float64(reservationReq.TotalPrice), Valid: reservationReq.TotalPrice != 0},
 		StartTime:       reservationReq.StartTime,
 		EndTime:         reservationReq.EndTime,
 		Language:        reservationReq.Language,
@@ -80,7 +81,7 @@ func (s *AdminService) CancelReservation(code string, refund bool) error {
 	}
 	sessionID := reservation.StripeSessionID
 	// Si la session de stripe no está, se puede cancelar (Quiere decir que nunca hubo pago por stripe)
-	if sessionID == "" {
+	if sessionID.String == "" {
 		_, err = s.reservationRepo.CancelReservation(code)
 		if err != nil {
 			log.Printf("Error canceling reservation: %v", err)
@@ -89,13 +90,10 @@ func (s *AdminService) CancelReservation(code string, refund bool) error {
 		return nil
 	}
 	if refund {
-		err = s.stripeService.RefundPaymentBySessionID(sessionID)
+		err = s.stripeService.RefundPaymentBySessionID(sessionID.String)
 		if err != nil {
-			if strings.Contains(err.Error(), "charge_already_refunded") {
-				log.Printf("Charge already refunded: %v", err)
-			} else {
-				return err
-			}
+			log.Printf("Error refunding payment: %v", err)
+			return err
 		}
 	}
 	_, err = s.reservationRepo.CancelReservation(code)

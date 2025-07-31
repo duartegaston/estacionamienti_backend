@@ -280,9 +280,9 @@ func (r *ReservationRepository) GetReservationByCodeOnly(code string) (*db.Reser
 		return nil, fmt.Errorf("error querying reservation: %w", err)
 	}
 	if totalPrice.Valid {
-		res.TotalPrice = float32(totalPrice.Float64)
+		res.TotalPrice = totalPrice
 	} else {
-		res.TotalPrice = 0
+		res.TotalPrice = sql.NullFloat64{Float64: 0, Valid: false}
 	}
 	return &res, nil
 }
@@ -294,7 +294,6 @@ func (r *ReservationRepository) GetReservationByStripeSessionID(sessionID string
 	query := `
 		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, 
 		       updated_at, stripe_session_id, payment_status, language, stripe_payment_intent_id, total_price
-
 		FROM reservations WHERE stripe_session_id = $1`
 	err := r.DB.QueryRow(query, sessionID).Scan(
 		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt,
@@ -306,14 +305,14 @@ func (r *ReservationRepository) GetReservationByStripeSessionID(sessionID string
 		return nil, fmt.Errorf("error querying reservation: %w", err)
 	}
 	if paymentIntentID.Valid {
-		res.StripePaymentIntentID = paymentIntentID.String
+		res.StripePaymentIntentID = paymentIntentID
 	} else {
-		res.StripePaymentIntentID = ""
+		res.StripePaymentIntentID = sql.NullString{String: "", Valid: false}
 	}
 	if totalPrice.Valid {
-		res.TotalPrice = float32(totalPrice.Float64)
+		res.TotalPrice = totalPrice
 	} else {
-		res.TotalPrice = 0
+		res.TotalPrice = sql.NullFloat64{Float64: 0, Valid: false}
 	}
 	return &res, nil
 }
