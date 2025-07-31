@@ -8,7 +8,6 @@ import (
 	"estacionamienti/internal/utils"
 	"fmt"
 	"github.com/lib/pq"
-	"log"
 	"time"
 )
 
@@ -172,15 +171,15 @@ func (r *ReservationRepository) GetHourlyAvailabilityDetails(startTime, endTime 
 }
 
 func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTimeID int) (float32, error) {
-	var price int
+	var price float32
 	err := r.DB.QueryRow(`SELECT price FROM vehicle_prices WHERE vehicle_type_id = $1 AND reservation_time_id = $2`, vehicleTypeID, reservationTimeID).Scan(&price)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return 0, fmt.Errorf("no price configured for vehicle_type_id %d and reservation_time_id %d", vehicleTypeID, reservationTimeID)
 		}
 		return 0, err
 	}
-	return float32(price), nil
+	return price, nil
 }
 
 func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
@@ -259,7 +258,6 @@ func (r *ReservationRepository) CancelReservation(code string) (string, error) {
 	var status string
 	err := r.DB.QueryRow(query, code, timeUpdated).Scan(&status)
 	if err != nil {
-		log.Printf("Error canceling reservation: %v", err)
 		return "", err
 	}
 	return status, nil

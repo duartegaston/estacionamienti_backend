@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"estacionamienti/internal/repository"
+	"log"
 	"os"
 	"time"
 
@@ -26,21 +27,25 @@ func NewAdminAuthService(repo repository.AdminAuthRepository) AdminAuthService {
 func (s *adminAuthService) Login(user, password string) (string, error) {
 	admin, err := s.repo.GetByEmail(user)
 	if err != nil {
+		log.Printf("Error from GetByEmail: %v", err)
 		return "", err
 	}
 	if admin == nil {
+		log.Printf("User %s not found", user)
 		return "", errors.New("invalid credentials")
 	}
 
 	// Comparamos el password hasheado
 	err = bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte(password))
 	if err != nil {
+		log.Printf("Error from CompareHashAndPassword: %v", err)
 		return "", errors.New("invalid credentials")
 	}
 
 	// Creamos un JWT
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
+		log.Println("JWT_SECRET not set")
 		return "", errors.New("JWT_SECRET not set")
 	}
 
@@ -55,11 +60,13 @@ func (s *adminAuthService) Login(user, password string) (string, error) {
 
 func (s *adminAuthService) CreateAdmin(user, password string) error {
 	if user == "" || password == "" {
+		log.Println("user and password cannot be empty")
 		return errors.New("user and password cannot be empty")
 	}
 
 	err := s.repo.CreateNewUser(user, password)
 	if err != nil {
+		log.Printf("Error from CreateNewUser: %v", err)
 		return err
 	}
 

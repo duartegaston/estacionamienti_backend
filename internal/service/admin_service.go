@@ -83,6 +83,7 @@ func (s *AdminService) CancelReservation(code string, refund bool) error {
 	if sessionID == "" {
 		_, err = s.reservationRepo.CancelReservation(code)
 		if err != nil {
+			log.Printf("Error canceling reservation: %v", err)
 			return err
 		}
 		return nil
@@ -98,17 +99,26 @@ func (s *AdminService) CancelReservation(code string, refund bool) error {
 		}
 	}
 	_, err = s.reservationRepo.CancelReservation(code)
-
+	if err != nil {
+		log.Printf("Error canceling reservation: %v", err)
+		return err
+	}
 	return err
 }
 
 func (s *AdminService) ListVehicleSpaces() ([]db.VehicleSpaceWithPrices, error) {
-	return s.adminRepo.ListVehicleSpaces()
+	spaces, err := s.adminRepo.ListVehicleSpaces()
+	if err != nil {
+		log.Printf("Error listing vehicle spaces: %v", err)
+		return nil, err
+	}
+	return spaces, nil
 }
 
 func (s *AdminService) UpdateVehicleSpacesAndPrices(vehicleType string, spaces int, prices map[string]float32) error {
 	err := s.adminRepo.UpdateVehicleSpaces(vehicleType, spaces)
 	if err != nil {
+		log.Printf("[AdminService] Error updating spaces for vehicleType '%s': %v", vehicleType, err)
 		return err
 	}
 	for timeName, price := range prices {

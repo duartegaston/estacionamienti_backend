@@ -31,23 +31,36 @@ func NewReservationService(repo *repository.ReservationRepository, stripeService
 }
 
 func (s *ReservationService) GetPrices() ([]entities.PriceResponse, error) {
-	return s.Repo.GetPrices()
+	priceResponse, err := s.Repo.GetPrices()
+	if err != nil {
+		log.Printf("Error from GetPrices: %v", err)
+		return nil, err
+	}
+	return priceResponse, nil
 }
 
 func (s *ReservationService) GetVehicleTypes() ([]db.VehicleType, error) {
-	return s.Repo.GetVehicleTypes()
+	vehicleTypes, err := s.Repo.GetVehicleTypes()
+	if err != nil {
+		log.Printf("Error from GetVehicleTypes: %v", err)
+		return nil, err
+	}
+	return vehicleTypes, nil
 }
 
 func (s *ReservationService) CheckAvailability(req entities.ReservationRequest) (*entities.AvailabilityResponse, error) {
 	// You need vehicle type name for mapping
 	var vehicleTypeName string
 	vehicleTypes, err := s.Repo.GetVehicleTypes()
-	if err == nil {
-		for _, vt := range vehicleTypes {
-			if vt.ID == req.VehicleTypeID {
-				vehicleTypeName = vt.Name
-				break
-			}
+	if err != nil {
+		log.Printf("Error from GetVehicleTypes: %v", err)
+		return nil, fmt.Errorf("internal error checking availability: %w", err)
+	}
+
+	for _, vt := range vehicleTypes {
+		if vt.ID == req.VehicleTypeID {
+			vehicleTypeName = vt.Name
+			break
 		}
 	}
 
@@ -100,9 +113,12 @@ func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, star
 	unit, count, reservationTimeID := getBestUnitAndCount(startTime, endTime)
 	pricePerUnit, err := s.Repo.GetPriceForUnit(vehicleTypeID, reservationTimeID)
 	if err != nil {
+		log.Printf("Error from GetPriceForUnit: %v", err)
 		return 0, fmt.Errorf("could not get price per %s: %w", unit, err)
 	}
-	return pricePerUnit * float32(count), nil
+	result := pricePerUnit * float32(count)
+	result = float32(int(result*10)) / 10
+	return result, nil
 }
 
 func (s *ReservationService) CreateReservation(req *entities.ReservationRequest) (*entities.StripeSessionResponse, error) {
@@ -128,6 +144,7 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 
 	sessionURL, err := s.handlePaymentIntent(req, reservation)
 	if err != nil {
+		log.Printf("Error from handlePaymentIntent: %v", err)
 		return nil, err
 	}
 
@@ -252,6 +269,7 @@ func (s *ReservationService) handlePaymentIntent(req *entities.ReservationReques
 
 	sessionURL, sessionID, err := s.stripeService.CreateCheckoutSession(amount, "eur", reservation.Code, req.UserEmail, reservation.Language)
 	if err != nil {
+		log.Printf("Error creating Stripe checkout session: %v", err)
 		return "", err
 	}
 
