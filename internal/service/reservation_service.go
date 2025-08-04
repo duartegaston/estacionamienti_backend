@@ -7,10 +7,11 @@ import (
 	"estacionamienti/internal/errors"
 	"estacionamienti/internal/repository"
 	"fmt"
-	"github.com/stripe/stripe-go/v82"
-	"github.com/stripe/stripe-go/v82/checkout/session"
 	"log"
 	"time"
+
+	"github.com/stripe/stripe-go/v82"
+	"github.com/stripe/stripe-go/v82/checkout/session"
 )
 
 const (
@@ -162,7 +163,12 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 }
 
 func (s *ReservationService) GetReservationByCode(code, email string) (*entities.ReservationResponse, error) {
-	return s.Repo.GetReservationByCode(code, email)
+	reservationResponse, err := s.Repo.GetReservationByCode(code, email)
+	if err != nil {
+		log.Printf("Error getting reservation by code: %v", err)
+		return nil, err
+	}
+	return reservationResponse, nil
 }
 
 func (s *ReservationService) CancelReservation(code string) error {
@@ -171,14 +177,6 @@ func (s *ReservationService) CancelReservation(code string) error {
 		return err
 	}
 	log.Printf("Canceling reservation with code: %s", code)
-	sessionID := reservation.StripeSessionID
-	if sessionID.String == "" {
-		return fmt.Errorf("No Stripe session ID found for reservation code: %s", code)
-	}
-	reservationResp, err := s.GetReservationBySessionID(sessionID.String)
-	if err != nil {
-		return err
-	}
 
 	currentTime := time.Now().UTC()
 	if reservation.StartTime.Sub(currentTime) < 12*time.Hour {
@@ -186,17 +184,35 @@ func (s *ReservationService) CancelReservation(code string) error {
 		return errors.ErrUnauthorized("Reservations can only be cancelled more than 12 hours before the start time")
 	}
 
+	sessionID := reservation.StripeSessionID.String
+	if sessionID == "" {
+		_, err = s.Repo.CancelReservation(code)
+		return err
+	}
+
+	// If reservation has a Stripe session ID
+	reservationResp, err := s.GetReservationBySessionID(sessionID)
+	if err != nil {
+		log.Printf("Error getting reservation by Stripe session ID: %v", err)
+		return err
+	}
+
 	err = s.stripeService.RefundPaymentBySessionID(reservation.StripeSessionID.String)
 	if err != nil {
+		log.Printf("Error refunding payment: %v", err)
 		return err
 	}
 
 	_, err = s.Repo.CancelReservation(code)
+	if err != nil {
+		log.Printf("Error canceling reservation: %v", err)
+		return err
+	}
 
 	statusTraducido := s.senderService.StatusTranslation(statusCancel, reservationResp.Language)
 	s.senderService.SendReservationSMS(*reservationResp, statusTraducido)
 	s.senderService.SendReservationEmail(*reservationResp, statusTraducido)
-	return err
+	return nil
 }
 
 func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entities.ReservationResponse, error) {

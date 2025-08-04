@@ -226,11 +226,13 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
     `
 
 	var totalPrice sql.NullFloat64
+	var stripeSessionID sql.NullString
+	var paymentStatus sql.NullString
 	err := r.DB.QueryRow(query, code, email).Scan(
 		&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
 		&res.VehicleTypeID, &res.VehicleTypeName,
 		&res.VehiclePlate, &res.VehicleModel,
-		&res.PaymentMethodID, &res.PaymentMethodName, &res.StripeSessionID, &res.PaymentStatus,
+		&res.PaymentMethodID, &res.PaymentMethodName, &stripeSessionID, &paymentStatus,
 		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.Language, &totalPrice,
 	)
 
@@ -239,6 +241,16 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
 			return nil, fmt.Errorf("reservation with code '%s' and email '%s' not found: %w", code, email, err)
 		}
 		return nil, fmt.Errorf("error querying or scanning reservation: %w", err)
+	}
+	if stripeSessionID.Valid {
+		res.StripeSessionID = stripeSessionID.String
+	} else {
+		res.StripeSessionID = ""
+	}
+	if paymentStatus.Valid {
+		res.PaymentStatus = paymentStatus.String
+	} else {
+		res.PaymentStatus = ""
 	}
 	if totalPrice.Valid {
 		res.TotalPrice = float32(totalPrice.Float64)
