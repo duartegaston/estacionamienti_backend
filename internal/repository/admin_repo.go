@@ -92,7 +92,7 @@ func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, code, 
 	SELECT
 		r.code, r.user_name, r.user_email, r.user_phone, r.vehicle_type_id, vt.name AS vehicle_type_name,
 		r.vehicle_plate, r.vehicle_model, r.payment_method_id, pm.name AS payment_method_name, COALESCE(r.payment_status, '') AS payment_status,
-		r.status, r.start_time, r.end_time, r.created_at, r.updated_at, COALESCE(r.total_price, 0) AS total_price
+		r.status, r.start_time, r.end_time, r.created_at, r.updated_at, COALESCE(r.total_price, 0) AS total_price, COALESCE(r.deposit_payment, 0) AS deposit_payment
 	FROM reservations r
 	JOIN vehicle_types vt ON vt.id = r.vehicle_type_id
 	JOIN payment_method pm ON pm.id = r.payment_method_id
@@ -125,7 +125,7 @@ func (r *AdminRepository) ListReservationsWithFilters(startTime, endTime, code, 
 		err := rows.Scan(
 			&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehicleTypeName,
 			&res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.PaymentMethodName, &res.PaymentStatus,
-			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.TotalPrice,
+			&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.TotalPrice, &res.DepositPayment,
 		)
 		if err == nil {
 			reservationsList.Reservations = append(reservationsList.Reservations, res)

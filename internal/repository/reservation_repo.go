@@ -185,8 +185,8 @@ func (r *ReservationRepository) GetPriceForUnit(vehicleTypeID int, reservationTi
 func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 	query := `
 		INSERT INTO reservations
-		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_session_id, payment_status, language, total_price)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		(code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, updated_at, stripe_session_id, payment_status, language, total_price, deposit_payment)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING id, created_at, updated_at`
 	return r.DB.QueryRow(query,
 		res.Code,
@@ -206,6 +206,7 @@ func (r *ReservationRepository) CreateReservation(res *db.Reservation) error {
 		res.PaymentStatus,
 		res.Language,
 		res.TotalPrice,
+		res.DepositPayment,
 	).Scan(&res.ID, &res.CreatedAt, &res.UpdatedAt)
 }
 
@@ -218,7 +219,7 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
             r.vehicle_type_id, vt.name AS vehicle_type_name,
             r.vehicle_plate, r.vehicle_model,
             r.payment_method_id, pm.name AS payment_method_name, r.stripe_session_id, r.payment_status,
-            r.status, r.start_time, r.end_time, r.created_at, r.updated_at, r.language, r.total_price
+            r.status, r.start_time, r.end_time, r.created_at, r.updated_at, r.language, r.total_price, r.deposit_payment
         FROM reservations r
         JOIN vehicle_types vt ON r.vehicle_type_id = vt.id
         JOIN payment_method pm ON r.payment_method_id = pm.id
@@ -228,12 +229,13 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
 	var totalPrice sql.NullFloat64
 	var stripeSessionID sql.NullString
 	var paymentStatus sql.NullString
+	var depositPayment sql.NullFloat64
 	err := r.DB.QueryRow(query, code, email).Scan(
 		&res.Code, &res.UserName, &res.UserEmail, &res.UserPhone,
 		&res.VehicleTypeID, &res.VehicleTypeName,
 		&res.VehiclePlate, &res.VehicleModel,
 		&res.PaymentMethodID, &res.PaymentMethodName, &stripeSessionID, &paymentStatus,
-		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.Language, &totalPrice,
+		&res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt, &res.UpdatedAt, &res.Language, &totalPrice, &depositPayment,
 	)
 
 	if err != nil {
@@ -256,6 +258,11 @@ func (r *ReservationRepository) GetReservationByCode(code, email string) (*entit
 		res.TotalPrice = float32(totalPrice.Float64)
 	} else {
 		res.TotalPrice = 0
+	}
+	if depositPayment.Valid {
+		res.DepositPayment = float32(depositPayment.Float64)
+	} else {
+		res.DepositPayment = 0
 	}
 	return &res, nil
 }
@@ -303,13 +310,14 @@ func (r *ReservationRepository) GetReservationByStripeSessionID(sessionID string
 	var res db.Reservation
 	var paymentIntentID sql.NullString
 	var totalPrice sql.NullFloat64
+	var depositPayment sql.NullFloat64
 	query := `
 		SELECT id, code, user_name, user_email, user_phone, vehicle_type_id, vehicle_plate, vehicle_model, payment_method_id, status, start_time, end_time, created_at, 
-		       updated_at, stripe_session_id, payment_status, language, stripe_payment_intent_id, total_price
+		       updated_at, stripe_session_id, payment_status, language, stripe_payment_intent_id, total_price, deposit_payment
 		FROM reservations WHERE stripe_session_id = $1`
 	err := r.DB.QueryRow(query, sessionID).Scan(
 		&res.ID, &res.Code, &res.UserName, &res.UserEmail, &res.UserPhone, &res.VehicleTypeID, &res.VehiclePlate, &res.VehicleModel, &res.PaymentMethodID, &res.Status, &res.StartTime, &res.EndTime, &res.CreatedAt,
-		&res.UpdatedAt, &res.StripeSessionID, &res.PaymentStatus, &res.Language, &paymentIntentID, &totalPrice)
+		&res.UpdatedAt, &res.StripeSessionID, &res.PaymentStatus, &res.Language, &paymentIntentID, &totalPrice, &depositPayment)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("reservation with sessionID '%s' not found: %w", sessionID, err)
@@ -325,6 +333,11 @@ func (r *ReservationRepository) GetReservationByStripeSessionID(sessionID string
 		res.TotalPrice = totalPrice
 	} else {
 		res.TotalPrice = sql.NullFloat64{Float64: 0, Valid: false}
+	}
+	if depositPayment.Valid {
+		res.DepositPayment = depositPayment
+	} else {
+		res.DepositPayment = sql.NullFloat64{Float64: 0, Valid: false}
 	}
 	return &res, nil
 }

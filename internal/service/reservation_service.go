@@ -18,6 +18,7 @@ const (
 	statusActive  = "active"
 	statusPending = "pending"
 	statusCancel  = "canceled"
+	deposit       = 0.3
 )
 
 type ReservationService struct {
@@ -140,6 +141,7 @@ func (s *ReservationService) CreateReservation(req *entities.ReservationRequest)
 		EndTime:         req.EndTime,
 		Language:        req.Language,
 		TotalPrice:      sql.NullFloat64{Float64: float64(req.TotalPrice), Valid: req.TotalPrice != 0},
+		DepositPayment:  sql.NullFloat64{Float64: float64(req.DepositPayment), Valid: req.DepositPayment != 0},
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
@@ -238,6 +240,7 @@ func (s *ReservationService) GetReservationBySessionID(sessionID string) (*entit
 		PaymentStatus:   reservation.PaymentStatus.String,
 		Language:        reservation.Language,
 		TotalPrice:      float32(reservation.TotalPrice.Float64),
+		DepositPayment:  float32(reservation.DepositPayment.Float64),
 	}
 	return resp, nil
 }
@@ -279,7 +282,7 @@ func (s *ReservationService) handlePaymentIntent(req *entities.ReservationReques
 	if req.PaymentMethodID == 2 { // online
 		amount = int64(req.TotalPrice * 100)
 	} else if req.PaymentMethodID == 1 { // onsite
-		amount = int64(float64(req.TotalPrice) * 0.3 * 100)
+		amount = int64(float64(req.TotalPrice) * deposit * 100)
 	} else {
 		return "", fmt.Errorf("Método de pago no soportado")
 	}

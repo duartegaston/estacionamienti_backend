@@ -16,6 +16,7 @@ type ReservationRequest struct {
 	StartTime       time.Time `json:"start_time"`
 	EndTime         time.Time `json:"end_time"`
 	TotalPrice      float32   `json:"total_price"`
+	DepositPayment  float32   `json:"deposit_payment"`
 	Language        string    `json:"language"`
 }
 
@@ -39,4 +40,5 @@ type ReservationResponse struct {
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 	TotalPrice        float32   `json:"total_price,omitempty"`
+	DepositPayment    float32   `json:"deposit_payment,omitempty"`
 }

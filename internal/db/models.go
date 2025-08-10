@@ -62,4 +62,5 @@ type Reservation struct {
 	Language              string          `json:"language"`
 	StripePaymentIntentID sql.NullString  `json:"stripe_payment_intent_id,omitempty"`
 	TotalPrice            sql.NullFloat64 `json:"total_price,omitempty"`
+	DepositPayment        sql.NullFloat64 `json:"deposit_payment,omitempty"`
 }
