@@ -113,13 +113,30 @@ func (s *ReservationService) GetTotalPriceForReservation(vehicleTypeID int, star
 	if !endTime.After(startTime) {
 		return 0, fmt.Errorf("end_time must be after start_time")
 	}
-	unit, count, reservationTimeID := getBestUnitAndCount(startTime, endTime)
-	pricePerUnit, err := s.Repo.GetPriceForUnit(vehicleTypeID, reservationTimeID)
+	months, weeks, days, hours := getUnitCounts(startTime, endTime)
+
+	priceHour, err := s.Repo.GetPriceForUnit(vehicleTypeID, 1)
 	if err != nil {
-		log.Printf("Error from GetPriceForUnit: %v", err)
-		return 0, fmt.Errorf("could not get price per %s: %w", unit, err)
+		log.Printf("Error from GetPriceForUnit (hour): %v", err)
+		return 0, fmt.Errorf("could not get price per hour: %w", err)
 	}
-	result := pricePerUnit * float32(count)
+	priceDay, err := s.Repo.GetPriceForUnit(vehicleTypeID, 2)
+	if err != nil {
+		log.Printf("Error from GetPriceForUnit (day): %v", err)
+		return 0, fmt.Errorf("could not get price per day: %w", err)
+	}
+	priceWeek, err := s.Repo.GetPriceForUnit(vehicleTypeID, 3)
+	if err != nil {
+		log.Printf("Error from GetPriceForUnit (week): %v", err)
+		return 0, fmt.Errorf("could not get price per week: %w", err)
+	}
+	priceMonth, err := s.Repo.GetPriceForUnit(vehicleTypeID, 4)
+	if err != nil {
+		log.Printf("Error from GetPriceForUnit (month): %v", err)
+		return 0, fmt.Errorf("could not get price per month: %w", err)
+	}
+
+	result := float32(months)*priceMonth + float32(weeks)*priceWeek + float32(days)*priceDay + float32(hours)*priceHour
 	result = float32(int(result*10)) / 10
 	return result, nil
 }
@@ -287,7 +304,7 @@ func (s *ReservationService) handlePaymentIntent(req *entities.ReservationReques
 		return "", fmt.Errorf("Método de pago no soportado")
 	}
 
-	sessionURL, sessionID, err := s.stripeService.CreateCheckoutSession(amount, "eur", reservation.Code, req.UserEmail, reservation.Language)
+	sessionURL, sessionID, err := s.stripeService.CreateCheckoutSession(amount, "eur", req.UserEmail, reservation.Language)
 	if err != nil {
 		log.Printf("Error creating Stripe checkout session: %v", err)
 		return "", err
@@ -299,38 +316,38 @@ func (s *ReservationService) handlePaymentIntent(req *entities.ReservationReques
 	return sessionURL, nil
 }
 
-func getBestUnitAndCount(startTime, endTime time.Time) (unit string, count int, reservationTimeID int) {
+func getUnitCounts(startTime, endTime time.Time) (months, weeks, days, hours int) {
 	d := endTime.Sub(startTime)
-	if d.Hours() < 24 {
-		// Less than 1 day, use hours
-		count = int(d.Hours())
-		if d.Minutes() > float64(count*60) {
-			count++
-		}
-		if count == 0 {
-			count = 1
-		}
-		return "hour", count, 1
-	} else if d.Hours() < 24*7 {
-		// Less than 1 week, use days
-		count = int(d.Hours() / 24)
-		if d.Hours() > float64(count*24) {
-			count++
-		}
-		return "day", count, 2
-	} else if d.Hours() < 24*30 {
-		// Less than 1 month, use weeks
-		count = int(d.Hours() / (24 * 7))
-		if d.Hours() > float64(count*24*7) {
-			count++
-		}
-		return "week", count, 3
-	} else {
-		// 1 month or more, use months
-		count = int(d.Hours() / (24 * 30))
-		if d.Hours() > float64(count*24*30) {
-			count++
-		}
-		return "month", count, 4
+	if d <= 0 {
+		return 0, 0, 0, 0
 	}
+
+	monthDur := 30 * 24 * time.Hour
+	weekDur := 7 * 24 * time.Hour
+	dayDur := 24 * time.Hour
+
+	months = int(d / monthDur)
+	d -= time.Duration(months) * monthDur
+
+	weeks = int(d / weekDur)
+	d -= time.Duration(weeks) * weekDur
+
+	days = int(d / dayDur)
+	d -= time.Duration(days) * dayDur
+
+	if d%time.Hour == 0 {
+		hours = int(d / time.Hour)
+	} else {
+		hours = int(d/time.Hour) + 1 // redondeo hacia arriba
+	}
+
+	if hours >= 24 {
+		days += hours / 24
+		hours = hours % 24
+	}
+	if days >= 7 {
+		weeks += days / 7
+		days = days % 7
+	}
+	return
 }

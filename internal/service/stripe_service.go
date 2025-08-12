@@ -32,7 +32,7 @@ func (s *StripeService) RefundPaymentBySessionID(sessionID string) error {
 }
 
 // Create checkout session
-func (s *StripeService) CreateCheckoutSession(amount int64, currency, description, customerEmail string, language string) (string, string, error) {
+func (s *StripeService) CreateCheckoutSession(amount int64, currency, customerEmail string, language string) (string, string, error) {
 	params := &stripe.CheckoutSessionParams{
 		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
@@ -40,7 +40,7 @@ func (s *StripeService) CreateCheckoutSession(amount int64, currency, descriptio
 				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
 					Currency: stripe.String(currency),
 					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Name: stripe.String("GreenParking: " + description),
+						Name: stripe.String("GreenParking"),
 					},
 					UnitAmount: stripe.Int64(amount),
 				},
