@@ -140,7 +140,7 @@ func main() {
 	r.HandleFunc("/webhook/stripe", stripeHandler.HandleWebhook).Methods("POST", "OPTIONS")
 
 	allowedOrigins := handlers.AllowedOrigins([]string{
-		"http://front-estacionamiento-octaviomartinduarte-5073s-projects.vercel.app",
+		"https://front-estacionamiento-octaviomartinduarte-5073s-projects.vercel.app",
 	})
 	allowedMethods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "X-Requested-With"})
